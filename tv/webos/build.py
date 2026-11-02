@@ -128,7 +128,16 @@ def build(preview, config, generic=False, hd=False):
     apps, icons = ([], {}) if generic else tv_apps()   # one TV's list never goes in a release
     if apps:
         config = dict(config, installedApps=apps)
+    wall = None
+    for name in ('wallpaper.jpg', 'wallpaper.jpeg', 'wallpaper.png'):   # your own background (git-ignored)
+        if not generic and os.path.exists(os.path.join(ROOT, name)):
+            with open(os.path.join(ROOT, name), 'rb') as f:
+                wall = ('wallpaper' + os.path.splitext(name)[1], f.read())
+            config = dict(config, wallpaper=wall[0])
+            break
     app = webapp.files(config, 'webos/build.py')
+    if wall:
+        app[wall[0]] = wall[1]
     app.update(icons)
     for name in ('appinfo.json', 'icon.png', 'largeIcon.png'):
         with open(os.path.join(ROOT, 'webos', name), 'rb') as f:

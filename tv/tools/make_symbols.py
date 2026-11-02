@@ -24,6 +24,8 @@ MAP = {
     "accessibility": ("accessibility_new", 0),
     "lightbulb": ("lightbulb", 1), "toggle": ("toggle_on", 1), "fan": ("mode_fan", 1), "blinds": ("blinds", 1),
     "bolt": ("bolt", 1), "smart_button": ("smart_button", 1),
+    "skip_next": ("skip_next", 1), "list": ("format_list_bulleted", 0), "replay": ("replay", 0),
+    "subtitles": ("subtitles", 1), "audio": ("graphic_eq", 0),
 }
 
 

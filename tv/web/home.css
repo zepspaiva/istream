@@ -59,6 +59,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #sky .night { background: -webkit-linear-gradient(top, #1C1C1E, #0B0B0D); background: linear-gradient(#1C1C1E, #0B0B0D); opacity: 0; }
 #sky canvas { position: absolute; left: -4%; top: -4%; width: 108%; height: 108%; opacity: 0; -webkit-transition: opacity 0.8s; transition: opacity 0.8s; }
 #sky canvas.on { opacity: 1; }
+#sky #wall { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-size: cover; background-position: center; display: none; }
+.has-wall #sky #wall { display: block; }
+.has-wall #sky .veil { background: rgba(245, 245, 247, 0.30); }
+.has-wall.night #sky .veil { background: rgba(11, 11, 13, 0.45); }
 #sky .veil { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: rgba(245, 245, 247, 0.74); -webkit-transition: background-color 2s; transition: background-color 2s; }
 #sky .lift { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: #FFF; opacity: 0; -webkit-transition: opacity 0.45s, background-color 2s; transition: opacity 0.45s, background-color 2s; }
 .night #sky .day { opacity: 0; }
@@ -624,3 +628,85 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .flat .cell.focus .face { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4) !important; }
 .flat #home, .flat #drawer, .flat #cards, .flat .card, .flat #tiles, .flat .tile { will-change: transform; }
 .flat #top { will-change: opacity; }
+
+/* The player (player.js): a video over everything but the toasts, even the night dimming. */
+#player { z-index: 7; background: #000; display: none; }
+#player.on { display: block; }
+#player video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #000; }
+#player .hud { position: absolute; left: 72px; right: 72px; bottom: 56px; padding: 30px 40px 28px; border-radius: 26px;
+  background: rgba(14, 14, 18, 0.8); color: #F5F5F7; -webkit-transition: opacity 0.35s; transition: opacity 0.35s; }
+#player .hud.hide { opacity: 0; }
+#player .title { font-size: 44px; font-weight: 600; letter-spacing: -0.01em; }
+#player .state { font-size: 26px; color: rgba(245, 245, 247, 0.7); margin-top: 6px; min-height: 32px; }
+#player .bar { height: 8px; border-radius: 4px; background: rgba(245, 245, 247, 0.2); margin-top: 20px; overflow: hidden; }
+#player .fill { height: 100%; width: 0; background: #F5F5F7; }
+#player .time { font-size: 24px; color: rgba(245, 245, 247, 0.75); margin-top: 12px; -webkit-font-feature-settings: 'tnum'; font-feature-settings: 'tnum'; }
+#player .info { font-size: 22px; color: rgba(245, 245, 247, 0.5); margin-top: 6px; }
+
+
+/* Now playing (renderHero): the show's backdrop behind the whole home screen, the title and its actions in the top half. */
+#herobg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; -webkit-transition: opacity 0.8s; transition: opacity 0.8s; }
+#herobg .art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-size: cover; background-position: center top; }
+#herobg .scrim { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  background: -webkit-linear-gradient(left, rgba(8, 8, 10, 0.92) 0%, rgba(8, 8, 10, 0.72) 38%, rgba(8, 8, 10, 0.18) 72%, rgba(8, 8, 10, 0.05) 100%);
+  background: linear-gradient(90deg, rgba(8, 8, 10, 0.92) 0%, rgba(8, 8, 10, 0.72) 38%, rgba(8, 8, 10, 0.18) 72%, rgba(8, 8, 10, 0.05) 100%); }
+#herobg .scrim:after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 420px;
+  background: -webkit-linear-gradient(top, rgba(8, 8, 10, 0), rgba(8, 8, 10, 0.85)); background: linear-gradient(rgba(8, 8, 10, 0), rgba(8, 8, 10, 0.85)); }
+.has-hero #herobg { opacity: 1; }
+.has-hero #sky .veil { background: transparent; }
+.has-hero #clock { display: block; top: 66px; font-size: 52px; font-weight: 300; color: #F5F5F7; }
+.has-hero #clock .date { display: none; }
+#hero { position: absolute; left: 76px; top: 196px; width: 940px; display: none; color: #F5F5F7; }
+.has-hero #hero { display: block; }
+#hero .logo { display: block; max-width: 620px; max-height: 180px; }
+#hero .name { font-size: 88px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.02; }
+#hero .meta { margin-top: 26px; font-size: 32px; font-weight: 600; color: rgba(245, 245, 247, 0.9); }
+#hero .desc { margin-top: 14px; font-size: 26px; line-height: 1.42; color: rgba(245, 245, 247, 0.7); max-height: 111px; overflow: hidden; }
+#hero .prog { margin-top: 26px; font-size: 22px; color: rgba(245, 245, 247, 0.7); }
+#hero .prog .bar { display: inline-block; vertical-align: middle; width: 340px; height: 6px; border-radius: 3px; background: rgba(245, 245, 247, 0.25); overflow: hidden; margin-right: 18px; }
+#hero .prog .fill { height: 100%; background: #F5F5F7; }
+#hero .acts { margin-top: 34px; white-space: nowrap; }
+#hero .act { display: inline-block; height: 66px; line-height: 66px; padding: 0 32px 0 26px; margin-right: 18px; border-radius: 33px;
+  background: rgba(245, 245, 247, 0.16); color: #F5F5F7; font-size: 26px; font-weight: 600;
+  -webkit-transition: -webkit-transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2), background-color 0.17s, color 0.17s;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2), background-color 0.17s, color 0.17s; }
+#hero .act .sym { display: inline-block; vertical-align: -6px; margin-right: 12px; background: #F5F5F7; }
+#hero .act.focus { background: #F5F5F7; color: #111114; -webkit-transform: scale(1.08); transform: scale(1.08); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.4); }
+#hero .act.focus .sym { background: #111114; }
+
+/* The player's start screen (while the stream loads: the hero's look) and its Audio menu. */
+#player .intro { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #08080A; opacity: 0;
+  visibility: hidden; -webkit-transition: opacity 0.6s, visibility 0s 0.6s; transition: opacity 0.6s, visibility 0s 0.6s; }
+#player .intro.on { opacity: 1; visibility: visible; -webkit-transition-delay: 0s; transition-delay: 0s; }
+#player .intro .art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-size: cover; background-position: center top; }
+#player .intro .scrim { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  background: -webkit-linear-gradient(left, rgba(8, 8, 10, 0.92) 0%, rgba(8, 8, 10, 0.7) 40%, rgba(8, 8, 10, 0.15) 75%, rgba(8, 8, 10, 0.05) 100%);
+  background: linear-gradient(90deg, rgba(8, 8, 10, 0.92) 0%, rgba(8, 8, 10, 0.7) 40%, rgba(8, 8, 10, 0.15) 75%, rgba(8, 8, 10, 0.05) 100%); }
+#player .intro .box { position: absolute; left: 76px; top: 300px; width: 940px; color: #F5F5F7; }
+#player .intro .logo { display: block; max-width: 620px; max-height: 180px; }
+#player .intro .name { font-size: 88px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.02; }
+#player .intro .meta { margin-top: 26px; font-size: 32px; font-weight: 600; color: rgba(245, 245, 247, 0.9); }
+#player .intro .desc { margin-top: 14px; font-size: 26px; line-height: 1.42; color: rgba(245, 245, 247, 0.7); max-height: 111px; overflow: hidden; }
+#player .intro .state { margin-top: 40px; font-size: 26px; color: rgba(245, 245, 247, 0.8); }
+#player .intro .spin { display: inline-block; vertical-align: -6px; width: 26px; height: 26px; margin-right: 16px; border-radius: 50%;
+  border: 3px solid rgba(245, 245, 247, 0.25); border-top-color: #F5F5F7;
+  -webkit-animation: fmtv-spin 0.9s linear infinite; animation: fmtv-spin 0.9s linear infinite; }
+@-webkit-keyframes fmtv-spin { to { -webkit-transform: rotate(360deg); } }
+@keyframes fmtv-spin { to { transform: rotate(360deg); } }
+#player .menu { position: absolute; right: 72px; bottom: 300px; width: 440px; padding: 22px 18px; border-radius: 26px;
+  background: rgba(14, 14, 18, 0.9); color: #F5F5F7; display: none; }
+#player .menu.on { display: block; }
+#player .menu .tabs { padding: 0 6px 14px; white-space: nowrap; }
+#player .menu .tab { display: inline-block; font-size: 22px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: rgba(245, 245, 247, 0.45); padding: 6px 14px; border-radius: 12px; margin-right: 6px; }
+#player .menu .tab.on { color: #F5F5F7; background: rgba(245, 245, 247, 0.14); }
+#player .menu { max-height: 620px; overflow: hidden; }
+/* Subtitles: drawn over the video, above the info bar when it shows. */
+#player .subs { position: absolute; left: 160px; right: 160px; bottom: 96px; text-align: center; pointer-events: none;
+  -webkit-transition: bottom 0.25s; transition: bottom 0.25s; }
+#player .subs.raised { bottom: 330px; }
+#player .subs .line { display: table; margin: 6px auto 0; padding: 4px 18px; border-radius: 8px; background: rgba(0, 0, 0, 0.55);
+  color: #FFF; font-size: 46px; font-weight: 500; line-height: 1.25; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); }
+#player .menu .row { font-size: 30px; font-weight: 500; padding: 14px 18px; border-radius: 16px; }
+#player .menu .row .tick { display: inline-block; width: 40px; }
+#player .menu .row.focus { background: #F5F5F7; color: #111114; }

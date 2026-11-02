@@ -523,7 +523,9 @@ var TV = (function () {
         for (var i = 0; i < points.length; i++) {
           var p = points[i];
           if (!p.id || p.id === self || HIDDEN.test(p.id)) continue;
-          out.push({id: p.id, title: p.title || p.id, icon: p.largeIcon || p.icon || '', color: p.bgColor || p.iconColor || ''});
+          var icon = p.largeIcon || p.icon || '';
+          if (/stremio/i.test(p.id) || /stremio/i.test(p.title || '')) icon = 'icons/stremio.svg';   // LG's icon doesn't load
+          out.push({id: p.id, title: p.title || p.id, icon: icon, color: p.bgColor || p.iconColor || ''});
         }
         return out;
       }
@@ -588,7 +590,11 @@ var TV = (function () {
               if (d.appId !== list[i].id) continue;
               list[i].connected = d.connected !== false;
               // A name the person gave the input on the TV ("PS5"), if any.
-              if (d.label && !/^hdmi\s*\d$/i.test(d.label)) list[i].label = d.label;
+              // or the name the device itself sends over HDMI ("PS5 Game Console"), wherever this firmware puts it
+              var name = [d.label, d.deviceName, d.cecDeviceName, d.name].filter(function (n) {
+                return n && typeof n === 'string' && !/^hdmi\s*\d$/i.test(n);
+              })[0];
+              if (name) { list[i].label = name.replace(/\s+game\s+console$/i, ''); list[i].named = true; }
             }
           }
         }
