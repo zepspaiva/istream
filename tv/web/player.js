@@ -27,7 +27,14 @@
   var menuOpen = false, menuIndex = 0, menuTab = 'subs', audioPicked = false;
   var subIndex = -1, cues = [], cueAt = -1, subLoading = null;
   var pendingLog = [], logUrl = null;
-  var closeListeners = [];
+  var closeListeners = [], changeListeners = [];
+
+  /** What's playing changed ('state') or its audio and subtitle choices did ('tracks'): for the phone (channel.js). */
+  function changed(kind) {
+    for (var i = 0; i < changeListeners.length; i++) {
+      try { changeListeners[i](kind); } catch (e) {}
+    }
+  }
 
   // tr() and trf() are strings.js's (the app's languages), loaded before this file.
 
@@ -201,7 +208,7 @@
   function onEvent(name) {
     if (name === 'loadedmetadata') {
       log('loadedmetadata ' + v.videoWidth + 'x' + v.videoHeight + ', ' + fmt(v.duration));
-      setTimeout(function () { describeTracks(); pickAudio(); }, 300);
+      setTimeout(function () { describeTracks(); pickAudio(); changed('tracks'); }, 300);
     } else {
       log(name + ' (t=' + fmt(v.currentTime) + ')');
     }
@@ -221,6 +228,7 @@
       save(true);
       close();
     }
+    changed('state');
   }
 
   function tracks() {
@@ -261,6 +269,7 @@
     for (var j = 0; j < list.length; j++) list[j].enabled = (j === index);
     log('audio track -> ' + index + ' (' + (list[index] && list[index].language) + ')');
     paintInfo();
+    changed('tracks');
   }
 
   /** "English", "Spanish", or "English 2" when two tracks share a language. */
@@ -358,6 +367,7 @@
     subsEl.innerHTML = '';
     item.sub = index;
     paintInfo();
+    changed('tracks');
     if (index < 0 || !item.subsUrl) return;
     var asked = item.url + '#' + index;
     subLoading = asked;
@@ -502,6 +512,11 @@
             subs: params.subs || (same ? saved.subs : null) || [], subsUrl: params.subsUrl || (same ? saved.subsUrl : null) || null,
             sub: same && saved.sub !== undefined ? saved.sub : null, subPicked: !!(same && saved.subPicked)};
     if (typeof item.subs === 'string') { try { item.subs = JSON.parse(item.subs); } catch (x) { item.subs = []; } }
+    // What the phone knows the video as ({type, contentId, videoId}), so it can save the place in the account.
+    var session = params.session;
+    if (typeof session === 'string') { try { session = JSON.parse(session); } catch (x) { session = null; } }
+    item.ref = session && session.videoId ? {type: session.type, contentId: session.contentId, videoId: session.videoId}
+      : (params.ref || (same ? saved.ref : null) || null);
     if (item.logUrl) logUrl = item.logUrl;
     log('open "' + item.title + '"' + (item.label ? ' [' + item.label + ']' : '') + (resumeAt ? ' from ' + fmt(resumeAt) : ''));
     var m = item.meta || {};
@@ -533,6 +548,7 @@
     clearInterval(saveTimer);
     saveTimer = setInterval(function () { if (!v.paused) save(); }, 10000);
     save();
+    changed('state');
   }
 
   function close() {
@@ -552,6 +568,7 @@
     intro.className = 'intro';
     log('closed');
     for (var i = 0; i < closeListeners.length; i++) closeListeners[i]();
+    changed('state');
   }
 
   // --- controls ---------------------------------------------------------------------------------------------------
@@ -617,6 +634,54 @@
     else if (cmd === 'stop') close();
   }
 
+  // --- for the phone (channel.js) ---------------------------------------------------------------------------------
+
+  /** What the TV shows: home, intro (the start screen), playing or paused, with the title and the place. */
+  function status() {
+    var m = (item && item.meta) || {};
+    var on = openFlag && v;
+    return {
+      screen: !openFlag ? 'home' : introOn() ? 'intro' : (v.paused ? 'paused' : 'playing'),
+      title: item ? item.title : null, show: m.show || null, season: m.season || null, episode: m.episode || null,
+      episodeTitle: m.episodeTitle || null, poster: item ? item.poster || null : null, backdrop: m.backdrop || null,
+      label: item ? item.label || null : null, url: item ? item.url : null, ref: item ? item.ref || null : null,
+      position: on ? Math.floor(v.currentTime + seekBy) : 0,
+      duration: on && isFinite(v.duration) ? Math.floor(v.duration) : 0,
+      buffering: !!(on && !v.paused && v.readyState < 3)
+    };
+  }
+
+  /** The audio tracks and subtitles on offer, and which ones are on. */
+  function trackInfo() {
+    var list = openFlag ? tracks() : [], names = trackNames(), audio = [], subs = [];
+    for (var i = 0; i < list.length; i++) audio.push({name: names[i], lang: langCode(list[i].language) || null, on: !!list[i].enabled});
+    var offered = (openFlag && item && item.subs) || [], snames = subNames();
+    for (var j = 0; j < offered.length; j++) subs.push({name: snames[j], lang: langCode(offered[j].lang) || offered[j].lang || null, on: subIndex === j});
+    return {audio: audio, subs: subs};
+  }
+
+  /** A subtitle by its place (-1: off), remembered as the language to show next time, as the TV's menu does. */
+  function pickSub(n) {
+    if (!openFlag || !item) return;
+    var list = item.subs || [];
+    if (n >= list.length) return;
+    item.subPicked = true;
+    showSub(n);
+    setSubPref(n < 0 ? 'off' : langCode(list[n].lang));
+    if (menuOpen) paintMenu();
+  }
+
+  function seekTo(seconds) {
+    if (!openFlag) return;
+    var to = Math.max(0, Number(seconds) || 0);
+    if (isFinite(v.duration)) to = Math.min(to, v.duration - 1);
+    clearTimeout(seekTimer);
+    seekBy = 0;
+    try { v.currentTime = to; } catch (e) {}
+    showHud(false);
+    changed('state');
+  }
+
   window.Player = {
     open: open,
     close: close,
@@ -629,12 +694,26 @@
     resume: function (start) {
       var s = load();
       if (s) open({url: s.url, title: s.title, poster: s.poster, label: s.label, logUrl: s.logUrl, meta: s.meta, start: start,
-                   subs: s.subs, subsUrl: s.subsUrl});
+                   subs: s.subs, subsUrl: s.subsUrl, ref: s.ref});
     },
     /** The next episode and the episode list come from the Raspberry Pi (the session the phone started). */
     next: function () { if (window.Player.onNext) window.Player.onNext(load()); },
     episodes: function () { if (window.Player.onEpisodes) window.Player.onEpisodes(load()); },
     forget: function () { save(true); },
-    onClose: function (fn) { closeListeners.push(fn); }
+    onClose: function (fn) { closeListeners.push(fn); },
+    status: status,
+    tracks: trackInfo,
+    setAudio: function (n) { if (openFlag && n >= 0 && n < tracks().length) setAudio(n); },
+    setSubtitle: pickSub,
+    seekTo: seekTo,
+    seekBy: function (seconds) { if (openFlag) seek(Number(seconds) || 0); },
+    pause: function () { if (openFlag) v.pause(); },
+    play: function () { if (openFlag) v.play(); },
+    onChange: function (fn) { changeListeners.push(fn); },
+    log: log
   };
+
+  // The Pi's log address from the last video, so what happens before the next one (the phone joining) is kept too.
+  var last = load();
+  if (last && last.logUrl) logUrl = last.logUrl;
 })();
