@@ -26,6 +26,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 
 from aiohttp import web
 
@@ -39,7 +40,7 @@ tv = TV(os.environ.get("TV_IP", "192.168.1.34"), os.path.join(os.environ.get("DA
 
 BUTTONS = {"UP", "DOWN", "LEFT", "RIGHT", "ENTER", "BACK", "HOME", "EXIT", "PLAY", "PAUSE", "STOP", "REWIND",
            "FASTFORWARD", "MENU", "INFO", "RED", "GREEN", "YELLOW", "BLUE", "CC", "MUTE"}
-APPS = {"nuvio": (NUVIO, "Nuvio"), "stremio": (STREMIO, "Stremio")}
+APPS = {"nuvio": (NUVIO, "Nuvio"), "stremio": (STREMIO, "Stremio"), "freemytv": ("io.freemytv", "Free My TV")}
 
 
 def ok(**extra):
@@ -285,6 +286,13 @@ async def cors(request, handler):
     return resp
 
 
+async def inputs(request):
+    """The TV's HDMI inputs that have a name (the console's own, like "PS5"), for the app's TV tab."""
+    named = {k: v for k, v in (tv.state.get("inputs") or {}).items()
+             if v and not re.match(r"^(hdmi|av|component)\s*\d*$", v.strip(), re.I)}
+    return web.json_response({"inputs": [{"id": k, "name": v.replace(" Game Console", "")} for k, v in named.items()]})
+
+
 async def off(request):
     return ok(job=tv.off())
 
@@ -335,6 +343,7 @@ def make_app():
         web.options("/api/player/log", health),
         web.get("/api/health", health),
         web.get("/api/status", status),
+        web.get("/api/inputs", inputs),
         web.post("/api/play", play),
         web.post("/api/open", open_title),
         web.post("/api/launch", launch),
