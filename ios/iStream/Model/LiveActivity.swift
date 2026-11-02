@@ -1,0 +1,93 @@
+import ActivityKit
+import FreeMyTVKit
+import Foundation
+
+/// The Lock Screen and Dynamic Island's "Now playing on the TV": started when the TV plays something, moved along by
+/// the TV's reports while the app runs (its bar keeps moving by itself after that), ended when the TV goes back home.
+@MainActor
+final class LiveActivityController {
+    private var activity: Activity<NowPlayingAttributes>?
+    private var url: String?
+    private var sent: NowPlayingAttributes.ContentState?
+
+    init() {
+        activity = Activity<NowPlayingAttributes>.activities.first
+    }
+
+    func update(_ state: PlayerState) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        if state.screen == "home" {
+            end()
+            return
+        }
+        // The start screen: nothing to show until the video has a length.
+        guard state.isActive, state.duration > 0 else { return }
+        let content = NowPlayingAttributes.ContentState(
+            isPlaying: state.isPlaying, position: state.position, duration: state.duration, at: Date(),
+            line: state.episodeLine)
+        if activity == nil || (url != nil && url != state.url) {
+            start(name: state.name, content: content, url: state.url)
+            return
+        }
+        url = state.url
+        // Only when it changed: playing or paused, or the place moved off what the clock says (a seek).
+        if let sent, sent.isPlaying == content.isPlaying, sent.duration == content.duration,
+           abs(sent.position(at: content.at) - content.position) < 5 {
+            return
+        }
+        send(content)
+    }
+
+    func end() {
+        let ending = Activity<NowPlayingAttributes>.activities
+        activity = nil
+        sent = nil
+        url = nil
+        Task {
+            for item in ending { await item.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    private func start(name: String, content: NowPlayingAttributes.ContentState, url: String?) {
+        let old = Activity<NowPlayingAttributes>.activities
+        Task {
+            for item in old { await item.end(nil, dismissalPolicy: .immediate) }
+        }
+        do {
+            activity = try Activity.request(attributes: NowPlayingAttributes(name: name),
+                                            content: ActivityContent(state: content, staleDate: content.end),
+                                            pushType: nil)
+            sent = content
+            self.url = url
+        } catch {
+            activity = nil
+        }
+    }
+
+    private func send(_ content: NowPlayingAttributes.ContentState) {
+        guard let activity else { return }
+        sent = content
+        Task { await activity.update(ActivityContent(state: content, staleDate: content.end.addingTimeInterval(60))) }
+    }
+}
+
+/// The Live Activity's button, with the app in the background: the Pi presses Pause or Play on the TV, and the
+/// activity shows the new state at once.
+enum BackgroundRemote {
+    static func setPaused(_ pause: Bool) async {
+        let defaults = UserDefaults.standard
+        guard let address = defaults.string(forKey: "piAddress"), let base = PiClient.address(from: address),
+              let token = Keychain.read("piToken") else { return }
+        let profile = defaults.integer(forKey: "profileId")
+        let client = PiClient(base: base, token: token, profile: profile > 0 ? profile : nil)
+        try? await client.tvButton(pause ? "PAUSE" : "PLAY")
+        let now = Date()
+        for activity in Activity<NowPlayingAttributes>.activities {
+            var state = activity.content.state
+            state.position = state.position(at: now)
+            state.at = now
+            state.isPlaying = !pause
+            await activity.update(ActivityContent(state: state, staleDate: state.end.addingTimeInterval(60)))
+        }
+    }
+}

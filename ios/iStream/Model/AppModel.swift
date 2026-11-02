@@ -44,6 +44,8 @@ final class AppModel {
     let playback = Playback()
     /// The phone's own line to the TV (M2): playing, pausing, seeking, audio and subtitles.
     let tv = TVConnection()
+    /// The Lock Screen and Dynamic Island's Now Playing (M3).
+    let liveActivity = LiveActivityController()
     /// The Now Playing sheet.
     var showNowPlaying = false
 
@@ -88,7 +90,10 @@ final class AppModel {
     func becameActive() {
         guard phase == .ready else { return }
         tv.onNewKey = { key in Keychain.write(Key.tvKey, key) }
-        tv.onState = { [weak self] state in self?.noteProgress(state) }
+        tv.onState = { [weak self] state in
+            self?.noteProgress(state)
+            self?.liveActivity.update(state)
+        }
         if tv.ip == nil || tv.clientKey == nil {
             Task {
                 if let pairing = try? await client.tvPairing() {

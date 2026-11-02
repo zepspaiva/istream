@@ -24,8 +24,10 @@ targets:
     platform: iOS
     sources:
       - path: iStream
+      - path: Shared
     dependencies:
       - package: FreeMyTVKit
+      - target: iStreamWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(ISTREAM_BUNDLE_ID)
@@ -42,6 +44,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "iStream talks to your Pi and your TV on the home network."
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
     info:
       path: iStream/Info.plist
       properties:
@@ -49,6 +52,27 @@ targets:
           # The Pi is plain HTTP on the home network; add-on artwork can be http too.
           NSAllowsLocalNetworking: true
           NSAllowsArbitraryLoads: true
+  iStreamWidgets:
+    # The Live Activity (Lock Screen and Dynamic Island); widgets later.
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(ISTREAM_BUNDLE_ID).widgets
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: iStream
+        SKIP_INSTALL: YES
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET_EXTENSION
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: Widgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 schemes:
   iStream:
     build:
