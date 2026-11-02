@@ -24,6 +24,7 @@ Tokens last 30 days from the last use. `POST /auth/logout` ends the session.
 | `POST /library` | yes | Adds `{ id, type, name?, poster?, background?, description?, year? }` |
 | `DELETE /library/<type>/<id>` | yes | Removes it |
 | `POST /play` | yes | Sends to the TV, see below |
+| `POST /progress` | yes | `{ type, contentId, videoId, season?, episode?, position, duration }` (seconds): saves the place in the account |
 | `GET\|POST /tv/<path>` | no | The TV service, see below |
 
 `type` is `movie` or `series`. A series episode's `videoId` is `<seriesId>:<season>:<episode>` (as in `Title.videos`).
@@ -44,8 +45,11 @@ Tokens last 30 days from the last use. `POST /auth/logout` ends the session.
 `POST /play` with `{ type, id: videoId, streamUrl?, quality?, start? }`. Without `streamUrl` the Pi picks the best
 stream. It waits up to 4 s for subtitles (later ones follow the video), sends everything to Free My TV and returns
 `{ job, title, label, url }`. Poll `GET /tv/status` until `job.done` for the steps (Waking the TV, Opening Free My TV,
-Loading the stream, Playing). With `"send": false` it returns `{ payload }` instead (for the phone to send itself,
-from M2).
+Loading the stream, Playing).
+
+With `"send": false` it returns `{ payload }` instead, for the phone to send over LG's app-to-app channel
+(`{ type: "play", params: payload }`, see `tv/web/channel.js`): the subtitles (waited for up to 8 s) are registered
+with the TV service and come as `subsUrl`, and `session` is only `{ type, contentId, videoId }`.
 
 ### The TV (`/tv/...`, the TV service on port 8080)
 
@@ -53,6 +57,7 @@ from M2).
 | --- | --- | --- |
 | `GET /tv/status` | | `{ power: on\|standby\|off, app, appTitle, media, volume, muted, job: { id, step, done, ok, title } }` |
 | `GET /tv/inputs` | | `{ inputs: [{ id, name }] }`, the named HDMI inputs (PS5, Switch) |
+| `GET /tv/pairing` | | `{ ip, clientKey, macs }`: for the app to talk to the TV itself, with the Pi's pairing |
 | `POST /tv/launch` | `{ target }` | An input id or name, `stremio`, `nuvio`, `freemytv`, or any app id. Wakes the TV first |
 | `POST /tv/off` | | Turns the TV off |
 | `POST /tv/volume` | `{ direction: up\|down\|mute }` | |

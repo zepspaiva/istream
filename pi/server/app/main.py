@@ -286,6 +286,26 @@ async def cors(request, handler):
     return resp
 
 
+async def pairing(request):
+    """What the iStream app needs to talk to the TV itself: its address, the pairing key this Pi was given (so the
+    TV doesn't ask again for the phone) and its MAC addresses (to wake it)."""
+    return web.json_response({"ip": tv.host, "clientKey": tv.state.get("client_key"),
+                              "macs": tv.state.get("macs") or []})
+
+
+async def register_subs(request):
+    """Subtitles for a video the phone will send to the TV itself: kept here, read by the TV (subsUrl), as with
+    /api/stream."""
+    b = await body(request)
+    url = str(b.get("url") or "")
+    if not url.startswith(("http://", "https://")):
+        return bad("url must be http(s)")
+    port = int(os.environ.get("PORT", "8080"))
+    params = subs_params(url, clean_subtitles(b.get("subtitles")))
+    params["logUrl"] = "http://%s:%d/api/player/log" % (tv.own_address(), port)
+    return web.json_response(params)
+
+
 async def inputs(request):
     """The TV's HDMI inputs that have a name (the console's own, like "PS5"), for the app's TV tab."""
     named = {k: v for k, v in (tv.state.get("inputs") or {}).items()
@@ -344,6 +364,8 @@ def make_app():
         web.get("/api/health", health),
         web.get("/api/status", status),
         web.get("/api/inputs", inputs),
+        web.get("/api/pairing", pairing),
+        web.post("/api/subs", register_subs),
         web.post("/api/play", play),
         web.post("/api/open", open_title),
         web.post("/api/launch", launch),
