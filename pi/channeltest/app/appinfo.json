@@ -1,0 +1,20 @@
+{
+  "id": "io.freemytv.channel3",
+  "version": "0.4.0",
+  "vendor": "Free My TV",
+  "type": "web",
+  "main": "index.html",
+  "title": "FMT Channel Test 3",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#111114",
+  "resolution": "1920x1080",
+  "handlesRelaunch": true,
+  "disableBackHistoryAPI": true,
+  "requiredPermissions": [
+    "secondscreen.app2app"
+  ],
+  "requiredACG": [
+    "secondscreen.app2app"
+  ]
+}

@@ -1,0 +1,9 @@
+# The TV's pairing key and MAC addresses
+tv.json
+data/
+# The Nuvio Web fork travels as nuvio-web-v<N>.tar (not in git for now)
+nuvio-web/
+*.tar
+*.ipk
+.venv/
+__pycache__/

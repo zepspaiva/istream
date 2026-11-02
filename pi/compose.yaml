@@ -1,0 +1,35 @@
+# Free My TV on the Raspberry Pi: the phone app (a fork of Nuvio Web) and the TV service it calls.
+# Both use the Pi's own network (network_mode: host): the TV service needs it to send the Wake-on-LAN
+# broadcast that turns the TV on, and the web app reaches it on 127.0.0.1:8080.
+#
+#   Phone:  http://192.168.1.35:3000
+services:
+  tv:
+    build: ./server
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TV_IP: "192.168.1.34"
+      PORT: "8080"
+    volumes:
+      - ./data/tv:/data            # tv.json: the TV's pairing key and MAC addresses
+
+  web:
+    build:
+      context: ./nuvio-web
+      args:
+        # The address you open on the phone. Nuvio Web needs it at build time to save anything over plain HTTP.
+        NUVIO_BUILD_ORIGIN: "http://192.168.1.35:3000"
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      TV_SERVICE_URL: "http://127.0.0.1:8080"
+      NUVIO_INSECURE_COOKIES: "1"   # plain HTTP on the home network: keep the sign-in cookie
+    volumes:
+      - web-data:/app/data         # sign-in sessions (encrypted) and the session secret
+    depends_on:
+      - tv
+
+volumes:
+  web-data:
