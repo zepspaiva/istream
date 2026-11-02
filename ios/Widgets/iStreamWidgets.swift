@@ -25,7 +25,7 @@ struct NowPlayingLiveActivity: Widget {
                         .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    PlayPauseButton(state: context.state)
+                    if !context.state.starting { PlayPauseButton(state: context.state) }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 2) {
@@ -65,13 +65,14 @@ struct LockScreenView: View {
                     .foregroundStyle(.pink)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name).font(.headline).lineLimit(1)
-                    Text(state.line ?? (state.isPlaying ? "Playing on the TV" : "Paused on the TV"))
+                    Text(state.line ?? (state.starting ? "Starting on the TV…"
+                        : state.isPlaying ? "Playing on the TV" : "Paused on the TV"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer()
-                PlayPauseButton(state: state)
+                if !state.starting { PlayPauseButton(state: state) }
             }
             ProgressLine(state: state)
         }
@@ -101,7 +102,9 @@ struct ProgressLine: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            if state.isPlaying && state.duration > 0 {
+            if state.starting {
+                ProgressView(value: 0, total: 1)
+            } else if state.isPlaying {
                 ProgressView(timerInterval: state.start...state.end, countsDown: false) {
                     EmptyView()
                 } currentValueLabel: {
@@ -124,7 +127,9 @@ struct Remaining: View {
     let state: NowPlayingAttributes.ContentState
 
     var body: some View {
-        if state.isPlaying && state.duration > 0 {
+        if state.starting {
+            Text("…")
+        } else if state.isPlaying {
             Text(timerInterval: state.start...state.end, countsDown: true)
                 .multilineTextAlignment(.trailing)
         } else {

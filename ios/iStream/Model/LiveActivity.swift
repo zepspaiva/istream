@@ -20,22 +20,37 @@ final class LiveActivityController {
             end()
             return
         }
-        // The start screen: nothing to show until the video has a length.
-        guard state.isActive, state.duration > 0 else { return }
+        guard state.isActive else { return }
+        // The start screen: "Starting on the TV" until the video has a length.
+        if state.duration <= 0 {
+            if activity == nil {
+                begin(name: state.name, line: state.episodeLine)
+                url = state.url
+            }
+            return
+        }
         let content = NowPlayingAttributes.ContentState(
             isPlaying: state.isPlaying, position: state.position, duration: state.duration, at: Date(),
             line: state.episodeLine)
-        if activity == nil || (url != nil && url != state.url) {
+        if activity == nil || (url != nil && state.url != nil && url != state.url) {
             start(name: state.name, content: content, url: state.url)
             return
         }
         url = state.url
         // Only when it changed: playing or paused, or the place moved off what the clock says (a seek).
-        if let sent, sent.isPlaying == content.isPlaying, sent.duration == content.duration,
+        if let sent, !sent.starting, sent.isPlaying == content.isPlaying, sent.duration == content.duration,
            abs(sent.position(at: content.at) - content.position) < 5 {
             return
         }
         send(content)
+    }
+
+    /// Right when Play is tapped (an activity can only start while the app is in front): "Starting on the TV".
+    func begin(name: String, line: String?) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let content = NowPlayingAttributes.ContentState(isPlaying: false, position: 0, duration: 0, at: Date(),
+                                                        line: line)
+        start(name: name, content: content, url: nil)
     }
 
     func end() {
@@ -55,7 +70,7 @@ final class LiveActivityController {
         }
         do {
             activity = try Activity.request(attributes: NowPlayingAttributes(name: name),
-                                            content: ActivityContent(state: content, staleDate: content.end),
+                                            content: ActivityContent(state: content, staleDate: nil),
                                             pushType: nil)
             sent = content
             self.url = url

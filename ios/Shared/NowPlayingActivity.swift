@@ -14,6 +14,9 @@ struct NowPlayingAttributes: ActivityAttributes {
         /// "S2 E3 · Office Olympics"
         var line: String?
 
+        /// Sent, not playing yet (the TV doesn't know the video's length).
+        var starting: Bool { duration <= 0 }
+
         /// When the video started (as if it had played without stops): the progress bar's timer counts from it.
         var start: Date { at.addingTimeInterval(-position) }
         var end: Date { start.addingTimeInterval(max(duration, 1)) }

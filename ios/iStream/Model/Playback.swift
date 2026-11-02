@@ -40,6 +40,7 @@ final class Playback {
         state = .sending
         let client = app.client
         let tv = app.tv
+        app.liveActivity.begin(name: title, line: subtitle.isEmpty ? nil : subtitle)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         task = Task {
             do {
@@ -125,6 +126,7 @@ final class Playback {
     }
 
     private func fail(_ message: String) {
+        app?.liveActivity.end()
         state = .failed(message)
         step = message
         UINotificationFeedbackGenerator().notificationOccurred(.error)

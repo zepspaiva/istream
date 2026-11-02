@@ -111,8 +111,27 @@ final class AppModel {
         }
     }
 
+    /// The TV's reports keep coming for a little while in the background, so a video started just before the phone
+    /// was locked still fills in its Live Activity.
     func wentToBackground() {
-        tv.stop()
+        endBackgroundTime()
+        backgroundTask = UIApplication.shared.beginBackgroundTask { [weak self] in
+            self?.tv.stop()
+            self?.endBackgroundTime()
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(25))
+            if UIApplication.shared.applicationState == .background { tv.stop() }
+            endBackgroundTime()
+        }
+    }
+
+    @ObservationIgnored private var backgroundTask = UIBackgroundTaskIdentifier.invalid
+
+    private func endBackgroundTime() {
+        guard backgroundTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(backgroundTask)
+        backgroundTask = .invalid
     }
 
     /// The TV's place goes to the account every 30 s while playing, and when it pauses or stops.
