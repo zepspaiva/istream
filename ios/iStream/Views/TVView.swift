@@ -26,6 +26,13 @@ struct TVView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    if app.tv.nowPlaying != nil {
+                        Button { app.showNowPlaying = true } label: {
+                            Label("Now Playing", systemImage: "play.rectangle.on.rectangle")
+                        }
+                    }
+                    LabeledContent("Phone remote", value: remoteStatus)
+                        .font(.footnote)
                 }
 
                 Section("Watch") {
@@ -71,6 +78,17 @@ struct TVView: View {
             .task { await poll() }
         }
         .withPlaybackBar()
+    }
+
+    private var remoteStatus: String {
+        switch app.tv.status {
+        case .connected: return "Connected"
+        case .waitingForApp: return "Opens with Free My TV"
+        case .needsPairing: return "Allow this phone on the TV"
+        case .off: return "TV off"
+        case .connecting: return "Connecting…"
+        case .unknown: return "—"
+        }
     }
 
     private func launchButton(_ name: String, systemImage: String, target: String) -> some View {

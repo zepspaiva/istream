@@ -61,3 +61,31 @@ import Testing
     #expect(error.needsSignIn)
     #expect(PiError.from(status: 502, data: Data(#"{"error":"The TV is off"}"#.utf8)).message == "The TV is off")
 }
+
+@Test func decodesTheTVsState() {
+    let payload: [String: Any] = [
+        "type": "state", "v": 1, "screen": "playing", "title": "The Office", "show": "The Office", "season": 2,
+        "episode": 3, "episodeTitle": "Office Olympics", "poster": NSNull(), "backdrop": "https://x/b.jpg",
+        "label": "1080p", "url": "https://x/v.mkv", "position": 125, "duration": 1320, "buffering": false,
+        "ref": ["type": "series", "contentId": "tt0386676", "videoId": "tt0386676:2:3"],
+    ]
+    let state = PlayerState.from(payload)
+    #expect(state?.isPlaying == true)
+    #expect(state?.episodeLine == "S2 E3 · Office Olympics")
+    #expect(state?.ref?.videoId == "tt0386676:2:3")
+    #expect(state?.artworkURL?.absoluteString == "https://x/b.jpg")
+}
+
+@Test func decodesTheTVsHomeScreen() {
+    let state = PlayerState.from(["type": "state", "screen": "home", "title": NSNull(), "position": 0, "duration": 0])
+    #expect(state?.isActive == false)
+}
+
+@Test func decodesTracks() {
+    let tracks = PlayerTracks.from([
+        "type": "tracks", "audio": [["name": "English", "lang": "en", "on": true] as [String: Any]],
+        "subs": [["name": "Spanish", "lang": "es", "on": false] as [String: Any]],
+    ])
+    #expect(tracks?.audio.first?.on == true)
+    #expect(tracks?.subs.count == 1)
+}

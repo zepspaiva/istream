@@ -16,6 +16,7 @@ struct iStreamApp: App {
 /// Setup until there's a Pi, an account and a profile; then the app.
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -27,6 +28,13 @@ struct RootView: View {
             }
         }
         .animation(.default, value: app.phase)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { app.becameActive() }
+            if phase == .background { app.wentToBackground() }
+        }
+        .onChange(of: app.phase) { _, phase in
+            if phase == .ready { app.becameActive() }
+        }
     }
 }
 
@@ -43,7 +51,9 @@ struct MainView: View {
             Tab("Search", systemImage: "magnifyingglass", value: "search", role: .search) { SearchView() }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .sheet(isPresented: Bindable(app).showNowPlaying) { NowPlayingView() }
         .task {
+            app.becameActive()
             if app.profiles.isEmpty { try? await app.loadProfiles() }
         }
     }

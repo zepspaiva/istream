@@ -157,62 +157,91 @@ struct ProfileBadge: View {
     }
 }
 
-/// What's being sent to the TV, and the TV's OK once it waits on its start screen.
+/// Above the tabs: what's being sent to the TV, then what the TV is playing (a tap opens Now Playing).
 struct PlaybackBar: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
         let playback = app.playback
-        if playback.isVisible {
-            HStack(spacing: 12) {
-                Artwork(url: playback.artwork)
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(playback.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(playback.subtitle.isEmpty ? playback.step : "\(playback.step) · \(playback.subtitle)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                switch playback.state {
-                case .sending:
-                    ProgressView()
-                case .following:
-                    if playback.step.hasPrefix("Loading") {
-                        startButton(playback)
-                    } else {
-                        ProgressView()
-                    }
-                case .playing:
-                    startButton(playback)
-                case .failed:
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                case .idle:
-                    EmptyView()
-                }
-                Button {
-                    withAnimation { playback.dismiss() }
-                } label: {
-                    Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Hide")
+        Group {
+            if playback.isVisible {
+                sending(playback)
+            } else if let now = app.tv.nowPlaying {
+                playing(now)
             }
-            .padding(10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .padding(.horizontal)
-            .padding(.bottom, 6)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        .animation(.snappy, value: playback.isVisible)
+        .animation(.snappy, value: app.tv.nowPlaying?.url)
+    }
+
+    private func sending(_ playback: Playback) -> some View {
+        bar(artwork: playback.artwork) {
+            Text(playback.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+            Text(playback.subtitle.isEmpty ? playback.step : "\(playback.step) · \(playback.subtitle)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } trailing: {
+            switch playback.state {
+            case .sending, .following:
+                ProgressView()
+            case .playing:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            case .failed:
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            case .idle:
+                EmptyView()
+            }
+            Button {
+                withAnimation { playback.dismiss() }
+            } label: {
+                Image(systemName: "xmark").font(.footnote.bold()).foregroundStyle(.secondary).padding(6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide")
         }
     }
 
-    /// The TV's start screen waits for OK: press it from here.
-    private func startButton(_ playback: Playback) -> some View {
-        Button("Start") { playback.start() }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+    private func playing(_ now: PlayerState) -> some View {
+        bar(artwork: now.artworkURL) {
+            Text(now.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+            Text(now.episodeLine ?? (now.screen == "intro" ? "Starting on the TV" : "On the TV"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } trailing: {
+            if now.screen == "intro" {
+                ProgressView()
+            } else {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    app.tv.togglePause()
+                } label: {
+                    Image(systemName: now.isPlaying ? "pause.fill" : "play.fill").font(.title3).padding(6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(now.isPlaying ? "Pause" : "Play")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { app.showNowPlaying = true }
+    }
+
+    private func bar<Middle: View, Trailing: View>(artwork: URL?, @ViewBuilder middle: () -> Middle,
+                                                   @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 12) {
+            Artwork(url: artwork)
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) { middle() }
+            Spacer(minLength: 4)
+            trailing()
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal)
+        .padding(.bottom, 6)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 

@@ -18,6 +18,8 @@ final class AppModel {
         static let askProfile = "askProfileOnLaunch"
         static let email = "email"
         static let token = "piToken"
+        static let tvIP = "tvIP"
+        static let tvKey = "tvClientKey"
     }
 
     private let defaults = UserDefaults.standard
@@ -40,6 +42,13 @@ final class AppModel {
     private var askProfile = false
 
     let playback = Playback()
+    /// The phone's own line to the TV (M2): playing, pausing, seeking, audio and subtitles.
+    let tv = TVConnection()
+    /// The Now Playing sheet.
+    var showNowPlaying = false
+
+    @ObservationIgnored private var progressSavedAt = Date.distantPast
+    @ObservationIgnored private var lastScreen = "home"
 
     init() {
         let defaults = UserDefaults.standard
@@ -54,6 +63,8 @@ final class AppModel {
             askProfile = defaults.bool(forKey: Key.askProfile)
         }
         playback.app = self
+        tv.ip = defaults.string(forKey: Key.tvIP)
+        tv.clientKey = Keychain.read(Key.tvKey)
         phase = Self.phase(piURL: piURL, token: token, profileId: askProfile ? nil : profileId)
     }
 
@@ -69,6 +80,50 @@ final class AppModel {
     /// The API as this device: its token and profile.
     var client: PiClient {
         PiClient(base: piURL ?? URL(string: "http://192.168.1.35:3000")!, token: token, profile: profileId)
+    }
+
+    // MARK: The TV
+
+    /// The app came to the front: talk to the TV (the Pi says where it is and lends its pairing, once).
+    func becameActive() {
+        guard phase == .ready else { return }
+        tv.onNewKey = { key in Keychain.write(Key.tvKey, key) }
+        tv.onState = { [weak self] state in self?.noteProgress(state) }
+        if tv.ip == nil || tv.clientKey == nil {
+            Task {
+                if let pairing = try? await client.tvPairing() {
+                    tv.ip = pairing.ip
+                    defaults.set(pairing.ip, forKey: Key.tvIP)
+                    if tv.clientKey == nil, let key = pairing.clientKey {
+                        tv.clientKey = key
+                        Keychain.write(Key.tvKey, key)
+                    }
+                }
+                tv.start()
+            }
+        } else {
+            tv.start()
+        }
+    }
+
+    func wentToBackground() {
+        tv.stop()
+    }
+
+    /// The TV's place goes to the account every 30 s while playing, and when it pauses or stops.
+    private func noteProgress(_ state: PlayerState) {
+        defer { lastScreen = state.screen }
+        guard let ref = state.ref, state.duration > 60, state.screen == "playing" || state.screen == "paused" else {
+            return
+        }
+        let changed = state.screen != lastScreen && (state.screen == "paused" || lastScreen == "playing")
+        guard changed || (state.isPlaying && Date().timeIntervalSince(progressSavedAt) > 30) else { return }
+        progressSavedAt = Date()
+        let client = client
+        Task {
+            try? await client.saveProgress(ref, season: state.season, episode: state.episode,
+                                           position: state.position, duration: state.duration)
+        }
     }
 
     // MARK: Steps

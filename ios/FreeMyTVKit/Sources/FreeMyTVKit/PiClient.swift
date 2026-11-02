@@ -128,7 +128,34 @@ public struct PiClient: Sendable {
         return try await send("POST", ["play"], body: body, timeout: 90)
     }
 
+    /// What the phone sends the TV itself (over LG's channel): the play message's params, as JSON.
+    public func playPayload(_ type: MediaType, videoId: String, streamUrl: String? = nil) async throws -> Data {
+        var body: [String: Any] = ["type": type.rawValue, "id": videoId, "send": false]
+        body["streamUrl"] = streamUrl
+        let data = try await sendRaw("POST", ["play"], body: body, timeout: 90)
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = object["payload"], JSONSerialization.isValidJSONObject(payload) else {
+            throw PiError(status: 200, message: "The Pi sent something unexpected for this video")
+        }
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    /// Where the TV got to (seconds), saved in the account.
+    public func saveProgress(_ ref: PlayerRef, season: Int?, episode: Int?, position: Double, duration: Double)
+        async throws {
+        var body: [String: Any] = [
+            "type": ref.type ?? (ref.videoId.contains(":") ? "series" : "movie"),
+            "contentId": ref.contentId, "videoId": ref.videoId, "position": position, "duration": duration,
+        ]
+        body["season"] = season
+        body["episode"] = episode
+        let _: Done = try await send("POST", ["progress"], body: body)
+    }
+
     // MARK: The TV
+
+    /// The TV's address and the Pi's pairing key, so the app can talk to the TV itself.
+    public func tvPairing() async throws -> TVPairing { try await get(["tv", "pairing"]) }
 
     public func tvStatus() async throws -> TVStatus { try await get(["tv", "status"], timeout: 10) }
 
@@ -177,6 +204,16 @@ public struct PiClient: Sendable {
 
     private func send<T: Decodable>(_ method: String, _ segments: [String], query: [URLQueryItem] = [],
                                     body: [String: Any]? = nil, timeout: TimeInterval = 30) async throws -> T {
+        let data = try await sendRaw(method, segments, query: query, body: body, timeout: timeout)
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw PiError(status: 200, message: "The Pi sent something unexpected (\(error))")
+        }
+    }
+
+    private func sendRaw(_ method: String, _ segments: [String], query: [URLQueryItem] = [],
+                         body: [String: Any]? = nil, timeout: TimeInterval = 30) async throws -> Data {
         var request = URLRequest(url: url(segments, query: query), timeoutInterval: timeout)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -198,10 +235,6 @@ public struct PiClient: Sendable {
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else { throw PiError.from(status: status, data: data) }
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw PiError(status: status, message: "The Pi sent something unexpected (\(error))")
-        }
+        return data
     }
 }
