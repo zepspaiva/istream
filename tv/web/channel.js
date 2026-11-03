@@ -6,7 +6,8 @@
  *
  * Messages are JSON with v: 1 and a type. From the phone: hello, getState, play {params}, control {action: pause |
  * resume | toggle | seek (to or by, seconds) | stop}, audio {index}, subs {index, -1 = off}; a command may carry an
- * id, answered with ack {id, ok, error}. To the phone: state (Player.status()), tracks (Player.tracks()), ack.
+ * id, answered with ack {id, ok, error}; cues {url, part, cues} (a subtitle's lines). To the phone: state
+ * (Player.status()), tracks (Player.tracks()), ack, needSubtitle {url} (read it for me, please).
  * ES5, as the rest of web/.
  */
 (function () {
@@ -88,6 +89,8 @@
       Player.setAudio(Number(p.index));
     } else if (p.type === 'subs') {
       Player.setSubtitle(Number(p.index));
+    } else if (p.type === 'cues') {
+      Player.addCues(p.url, p.cues || [], p.part === 0);
     } else {
       error = 'Unknown message: ' + p.type;
     }
@@ -127,6 +130,9 @@
   }
 
   // --- what the phone hears ---------------------------------------------------------------------------------------
+
+  // A subtitle the TV couldn't read itself: the phone reads it and sends its lines ('cues').
+  Player.onNeedSubtitle = function (url) { broadcast({type: 'needSubtitle', url: url}); };
 
   Player.onChange(function (kind) {
     broadcast(kind === 'tracks' ? tracksMessage() : stateMessage());

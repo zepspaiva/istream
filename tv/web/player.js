@@ -368,9 +368,14 @@
     item.sub = index;
     paintInfo();
     changed('tracks');
-    if (index < 0 || !item.subsUrl) return;
+    if (index < 0) return;
     var asked = item.url + '#' + index;
     subLoading = asked;
+    if (!item.subsUrl) {
+      var chosen = item.subs && item.subs[index];
+      if (chosen && chosen.url) fetchCues(chosen.url, asked, index);
+      return;
+    }
     try {
       var x = new XMLHttpRequest();
       x.open('GET', item.subsUrl + index, true);
@@ -383,6 +388,86 @@
       x.onerror = function () { log('subtitle ' + index + ' failed'); };
       x.send();
     } catch (e) {}
+  }
+
+  // Subtitles straight from the add-on's address (no Pi): read and turned into timed lines here. When the TV can't
+  // read the file (the server doesn't allow it, or it's gzipped), the phone reads it and sends the lines (addCues).
+
+  var phoneAsk = null;   // {url, asked}: the subtitle the phone was asked for
+
+  function fetchCues(url, asked, index) {
+    try {
+      var x = new XMLHttpRequest();
+      x.open('GET', url, true);
+      x.responseType = 'arraybuffer';
+      x.timeout = 20000;
+      x.onload = function () {
+        if (subLoading !== asked) return;
+        var bytes = x.status >= 200 && x.status < 300 && x.response ? new Uint8Array(x.response) : null;
+        if (!bytes || (bytes[0] === 0x1f && bytes[1] === 0x8b)) { askPhone(url, asked); return; }
+        cues = parseSubs(decodeText(bytes));
+        log('subtitle ' + index + ': ' + cues.length + ' lines (read here)');
+        if (!cues.length) askPhone(url, asked);
+      };
+      x.onerror = x.ontimeout = function () { if (subLoading === asked) askPhone(url, asked); };
+      x.send();
+    } catch (e) {
+      askPhone(url, asked);
+    }
+  }
+
+  function askPhone(url, asked) {
+    phoneAsk = {url: url, asked: asked};
+    log('subtitle: asking the phone for ' + url.slice(0, 80));
+    if (window.Player.onNeedSubtitle) window.Player.onNeedSubtitle(url);
+  }
+
+  /** Lines the phone read for us: the first part replaces, the next ones add. */
+  function addCues(url, list, first) {
+    if (!phoneAsk || phoneAsk.url !== url || subLoading !== phoneAsk.asked) return;
+    cues = first ? list.slice(0) : cues.concat(list);
+    cueAt = -1;
+  }
+
+  /** UTF-8 when it is, else Windows-1252 (most older subtitles), as the Pi did. */
+  function decodeText(bytes) {
+    var start = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
+    var body = bytes.subarray(start);
+    if (window.TextDecoder) {
+      try { return new window.TextDecoder('utf-8', {fatal: true}).decode(body); } catch (e) {}
+      try { return new window.TextDecoder('windows-1252').decode(body); } catch (e2) {}
+    }
+    var out = '';
+    for (var i = 0; i < body.length; i += 8192) {
+      out += String.fromCharCode.apply(null, Array.prototype.slice.call(body.subarray(i, i + 8192)));
+    }
+    return out;
+  }
+
+  var CUE_TIME = /(?:(\d+):)?(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->\s*(?:(\d+):)?(\d{1,2}):(\d{1,2})[,.](\d{1,3})/;
+  var CUE_TAGS = /<[^>]*>|\{\\[^}]*\}/g;
+
+  function secs(h, m, s, ms) {
+    return (Number(h) || 0) * 3600 + Number(m) * 60 + Number(s) + Number((ms + '00').slice(0, 3)) / 1000;
+  }
+
+  /** SRT and WebVTT alike: every block with a "start --> end" line; the lines after it are the text. */
+  function parseSubs(text) {
+    var out = [], blocks = text.replace(/\r\n/g, '\n').split(/\n\s*\n/);
+    for (var b = 0; b < blocks.length; b++) {
+      var lines = blocks[b].replace(/^\n+|\n+$/g, '').split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var m = CUE_TIME.exec(lines[i]);
+        if (!m) continue;
+        var start = secs(m[1], m[2], m[3], m[4]), end = secs(m[5], m[6], m[7], m[8]), body = [];
+        for (var j = i + 1; j < lines.length; j++) body.push(lines[j].replace(CUE_TAGS, '').replace(/^\s+|\s+$/g, ''));
+        var t = body.join('\n').replace(/^\s+|\s+$/g, '');
+        if (t && end > start) out.push({s: Math.round(start * 1000) / 1000, e: Math.round(end * 1000) / 1000, t: t.slice(0, 400)});
+        break;
+      }
+    }
+    out.sort(function (a, c) { return a.s - c.s; });
+    return out;
   }
 
   /** The subtitles' list, read from the Pi (<subsUrl>list): then done(). Kept with what's playing. */
@@ -509,9 +594,11 @@
     item = {url: params.url, title: params.title || '', poster: params.poster || (same ? saved.poster : '') || '',
             label: params.label || '', logUrl: params.logUrl || (saved && saved.logUrl) || null, position: resumeAt,
             meta: meta || (same ? saved.meta : null) || null,
-            subs: params.subs || (same ? saved.subs : null) || [], subsUrl: params.subsUrl || (same ? saved.subsUrl : null) || null,
+            subs: params.subs || params.subtitles || (same ? saved.subs : null) || [],
+            subsUrl: params.subsUrl || (same ? saved.subsUrl : null) || null,
             sub: same && saved.sub !== undefined ? saved.sub : null, subPicked: !!(same && saved.subPicked)};
     if (typeof item.subs === 'string') { try { item.subs = JSON.parse(item.subs); } catch (x) { item.subs = []; } }
+    if (params.subtitles && !params.subsUrl) item.subsUrl = null;   // the phone's list: each has its own address
     // What the phone knows the video as ({type, contentId, videoId}), so it can save the place in the account.
     var session = params.session;
     if (typeof session === 'string') { try { session = JSON.parse(session); } catch (x) { session = null; } }
@@ -710,6 +797,8 @@
     pause: function () { if (openFlag) v.pause(); },
     play: function () { if (openFlag) v.play(); },
     onChange: function (fn) { changeListeners.push(fn); },
+    addCues: addCues,
+    parseSubs: parseSubs,
     log: log
   };
 
