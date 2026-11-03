@@ -2,113 +2,138 @@ import FreeMyTVKit
 import Observation
 import SwiftUI
 
-/// Who and where: the Pi's address, the signed-in account, this device's profile. Decides which screen shows.
+/// The app's state: the person's add-ons and library (on the phone), the TV, what's playing. Decides which screen
+/// shows: setting up (add-ons, then the TV) or the app.
 @MainActor @Observable
 final class AppModel {
     enum Phase: Equatable {
-        case connect      // no Pi yet
-        case signIn       // the Pi answers, nobody signed in
-        case pickProfile  // signed in, "Who's watching?"
+        case addons   // no add-ons yet: bring them in
+        case findTV   // no TV yet: find it and pair
         case ready
     }
 
     private enum Key {
-        static let piAddress = "piAddress"
-        static let profileId = "profileId"
-        static let askProfile = "askProfileOnLaunch"
-        static let email = "email"
-        static let token = "piToken"
         static let tvIP = "tvIP"
         static let tvKey = "tvClientKey"
+        static let tvMACs = "tvMACs"
+        static let tvName = "tvName"
+        static let quality = "preferredQuality"
+        // From the Pi days (M1 to M3): read once to carry the TV's wake addresses over.
+        static let piAddress = "piAddress"
     }
 
     private let defaults = UserDefaults.standard
 
-    private(set) var phase: Phase = .connect
-    private(set) var piURL: URL?
-    private(set) var token: String?
-    private(set) var profileId: Int?
-    private(set) var email: String?
-    var profiles: [Profile] = []
+    private(set) var phase: Phase = .addons
+    private(set) var tvName: String?
 
-    /// A shared iPad asks "Who's watching?" every time the app opens; a phone remembers.
-    var askProfileOnLaunch: Bool {
-        get { askProfile }
-        set {
-            askProfile = newValue
-            defaults.set(newValue, forKey: Key.askProfile)
-        }
-    }
-    private var askProfile = false
-
+    let store: LocalStore
+    let content: ContentService
     let playback = Playback()
-    /// The phone's own line to the TV (M2): playing, pausing, seeking, audio and subtitles.
+    /// The phone's own line to the TV.
     let tv = TVConnection()
-    /// The Lock Screen and Dynamic Island's Now Playing (M3).
+    /// The Lock Screen and Dynamic Island's Now Playing.
     let liveActivity = LiveActivityController()
     /// The Now Playing sheet.
     var showNowPlaying = false
 
+    /// Which quality Play picks: "auto" (the add-ons' order), or 4K, 1080p, 720p.
+    var preferredQuality: String {
+        get { quality }
+        set {
+            quality = newValue
+            content.preferredQuality = newValue
+            defaults.set(newValue, forKey: Key.quality)
+        }
+    }
+    private var quality = "auto"
+
     @ObservationIgnored private var progressSavedAt = Date.distantPast
     @ObservationIgnored private var lastScreen = "home"
+    @ObservationIgnored private var backgroundTask = UIBackgroundTaskIdentifier.invalid
 
     init() {
         let defaults = UserDefaults.standard
-        piURL = defaults.string(forKey: Key.piAddress).flatMap(PiClient.address(from:))
-        token = Keychain.read(Key.token)
-        email = defaults.string(forKey: Key.email)
-        let saved = defaults.integer(forKey: Key.profileId)
-        profileId = saved > 0 ? saved : nil
-        if defaults.object(forKey: Key.askProfile) == nil {
-            askProfile = UIDevice.current.userInterfaceIdiom == .pad
-        } else {
-            askProfile = defaults.bool(forKey: Key.askProfile)
-        }
-        playback.app = self
+        store = LocalStore()
+        content = ContentService(store: store)
+        quality = defaults.string(forKey: Key.quality) ?? "auto"
+        content.preferredQuality = quality
         tv.ip = defaults.string(forKey: Key.tvIP)
         tv.clientKey = Keychain.read(Key.tvKey)
-        phase = Self.phase(piURL: piURL, token: token, profileId: askProfile ? nil : profileId)
+        tv.macs = defaults.stringArray(forKey: Key.tvMACs) ?? []
+        tvName = defaults.string(forKey: Key.tvName)
+        playback.app = self
+        refreshPhase()
     }
 
-    private static func phase(piURL: URL?, token: String?, profileId: Int?) -> Phase {
-        if piURL == nil { return .connect }
-        if token == nil { return .signIn }
-        if profileId == nil { return .pickProfile }
-        return .ready
+    func refreshPhase() {
+        phase = store.addonURLs.isEmpty ? .addons : tv.ip == nil ? .findTV : .ready
     }
 
-    var profile: Profile? { profiles.first { $0.id == profileId } }
+    // MARK: Setting up
 
-    /// The API as this device: its token and profile.
-    var client: PiClient {
-        PiClient(base: piURL ?? URL(string: "http://192.168.1.35:3000")!, token: token, profile: profileId)
+    func addAddons(_ urls: [AddonURL]) {
+        store.addAddons(urls)
+        content.addonsChanged()
+        refreshPhase()
+    }
+
+    func removeAddon(_ url: AddonURL) {
+        store.removeAddon(url)
+        content.addonsChanged()
+    }
+
+    func moveAddons(_ order: [AddonURL]) {
+        store.moveAddons(order)
+        content.addonsChanged()
+    }
+
+    /// The TV to use from now on (its address; the pairing comes when the phone first connects).
+    func useTV(ip: String, name: String?) {
+        if ip != tv.ip {
+            tv.stop()
+            tv.clientKey = nil
+            Keychain.write(Key.tvKey, nil)
+            tv.macs = []
+            defaults.removeObject(forKey: Key.tvMACs)
+        }
+        tv.ip = ip
+        tvName = name
+        defaults.set(ip, forKey: Key.tvIP)
+        defaults.set(name, forKey: Key.tvName)
+        refreshPhase()
+        becameActive()
+    }
+
+    func forgetTV() {
+        tv.stop()
+        tv.ip = nil
+        tv.clientKey = nil
+        Keychain.write(Key.tvKey, nil)
+        defaults.removeObject(forKey: Key.tvIP)
+        refreshPhase()
     }
 
     // MARK: The TV
 
-    /// The app came to the front: talk to the TV (the Pi says where it is and lends its pairing, once).
+    /// The app came to the front: talk to the TV.
     func becameActive() {
         guard phase == .ready else { return }
+        endBackgroundTime()
         tv.onNewKey = { key in Keychain.write(Key.tvKey, key) }
         tv.onState = { [weak self] state in
             self?.noteProgress(state)
             self?.liveActivity.update(state)
         }
-        if tv.ip == nil || tv.clientKey == nil {
+        tv.onNeedSubtitle = { [weak self] url in
+            guard let self else { return }
             Task {
-                if let pairing = try? await client.tvPairing() {
-                    tv.ip = pairing.ip
-                    defaults.set(pairing.ip, forKey: Key.tvIP)
-                    if tv.clientKey == nil, let key = pairing.clientKey {
-                        tv.clientKey = key
-                        Keychain.write(Key.tvKey, key)
-                    }
-                }
-                tv.start()
+                let cues = await self.content.cues(url)
+                self.tv.sendCues(url, cues)
             }
-        } else {
-            tv.start()
         }
+        carryOverFromPi()
+        tv.start()
     }
 
     /// The TV's reports keep coming for a little while in the background, so a video started just before the phone
@@ -126,94 +151,40 @@ final class AppModel {
         }
     }
 
-    @ObservationIgnored private var backgroundTask = UIBackgroundTaskIdentifier.invalid
-
     private func endBackgroundTime() {
         guard backgroundTask != .invalid else { return }
         UIApplication.shared.endBackgroundTask(backgroundTask)
         backgroundTask = .invalid
     }
 
-    /// The TV's place goes to the account every 30 s while playing, and when it pauses or stops.
+    /// The TV's place is kept every 30 s while playing, and when it pauses or stops.
     private func noteProgress(_ state: PlayerState) {
         defer { lastScreen = state.screen }
-        guard let ref = state.ref, state.duration > 60, state.screen == "playing" || state.screen == "paused" else {
+        guard state.ref != nil, state.duration > 60, state.screen == "playing" || state.screen == "paused" else {
             return
         }
-        let changed = state.screen != lastScreen && (state.screen == "paused" || lastScreen == "playing")
-        guard changed || (state.isPlaying && Date().timeIntervalSince(progressSavedAt) > 30) else { return }
+        let changed = state.screen != lastScreen
+        guard changed || Date().timeIntervalSince(progressSavedAt) > 30 else { return }
         progressSavedAt = Date()
-        let client = client
+        content.saveProgress(state)
+    }
+
+    /// Once, for a phone set up with the Pi: its pairing had the TV's network cards (MACs), which waking it needs.
+    private func carryOverFromPi() {
+        guard tv.macs.isEmpty, let address = defaults.string(forKey: Key.piAddress),
+              let base = PiClient.address(from: address) else { return }
         Task {
-            try? await client.saveProgress(ref, season: state.season, episode: state.episode,
-                                           position: state.position, duration: state.duration)
+            let client = PiClient(base: base, token: Keychain.read("piToken"))
+            guard let pairing = try? await client.tvPairing(), !pairing.macs.isEmpty else { return }
+            tv.macs = pairing.macs
+            defaults.set(pairing.macs, forKey: Key.tvMACs)
+            if tv.clientKey == nil, let key = pairing.clientKey {
+                tv.clientKey = key
+                Keychain.write(Key.tvKey, key)
+            }
         }
     }
 
-    // MARK: Steps
-
-    func connect(to text: String) async throws {
-        guard let url = PiClient.address(from: text) else {
-            throw PiError(status: 0, message: "That doesn't look like an address")
-        }
-        let info = try await PiClient(base: url).info()
-        guard info.name == "istream" else {
-            throw PiError(status: 0, message: "Something answered there, but it isn't the iStream Pi")
-        }
-        piURL = url
-        defaults.set(url.absoluteString, forKey: Key.piAddress)
-        phase = token == nil ? .signIn : .pickProfile
-    }
-
-    func signIn(email: String, password: String) async throws {
-        let result = try await client.login(email: email, password: password)
-        token = result.token
-        Keychain.write(Key.token, result.token)
-        self.email = result.user.email ?? email
-        defaults.set(self.email, forKey: Key.email)
-        phase = .pickProfile
-    }
-
-    func loadProfiles() async throws {
-        do {
-            profiles = try await client.profiles()
-        } catch let error as PiError where error.needsSignIn {
-            signedOut()
-            throw error
-        }
-    }
-
-    func choose(_ profile: Profile) {
-        profileId = profile.id
-        defaults.set(profile.id, forKey: Key.profileId)
-        phase = .ready
-    }
-
-    func switchProfile() {
-        phase = .pickProfile
-    }
-
-    func changePi() {
-        phase = .connect
-    }
-
-    func signOut() async {
-        try? await client.logout()
-        signedOut()
-    }
-
-    /// The Pi no longer knows this token (or the person signed out).
-    func signedOut() {
-        token = nil
-        Keychain.write(Key.token, nil)
-        profiles = []
-        phase = piURL == nil ? .connect : .signIn
-    }
-
-    /// Any call that comes back "sign in first" lands here.
-    func handle(_ error: Error) {
-        if let error = error as? PiError, error.needsSignIn {
-            signedOut()
-        }
-    }
+    /// Errors on screen; nothing to sign in to any more.
+    func handle(_ error: Error) {}
 }

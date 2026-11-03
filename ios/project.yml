@@ -42,14 +42,16 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "iStream talks to your Pi and your TV on the home network."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "iStream finds your TV and talks to it on the home network."
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
     info:
       path: iStream/Info.plist
       properties:
+        NSBonjourServices:
+          - _airplay._tcp
         NSAppTransportSecurity:
-          # The Pi is plain HTTP on the home network; add-on artwork can be http too.
+          # The TV is plain HTTP and WebSocket on the home network; add-ons and their artwork can be http too.
           NSAllowsLocalNetworking: true
           NSAllowsArbitraryLoads: true
   iStreamWidgets:

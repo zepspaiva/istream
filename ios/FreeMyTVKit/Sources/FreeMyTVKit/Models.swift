@@ -71,6 +71,23 @@ public struct Resume: Codable, Sendable, Hashable, Identifiable {
     public let progress: Double
     public let remainingMs: Double
 
+    public init(id: String, type: MediaType, name: String, poster: String?, background: String?, logo: String?,
+                videoId: String, season: Int?, episode: Int?, episodeTitle: String?, progress: Double,
+                remainingMs: Double) {
+        self.id = id
+        self.type = type
+        self.name = name
+        self.poster = poster
+        self.background = background
+        self.logo = logo
+        self.videoId = videoId
+        self.season = season
+        self.episode = episode
+        self.episodeTitle = episodeTitle
+        self.progress = progress
+        self.remainingMs = remainingMs
+    }
+
     public var posterURL: URL? { link(poster) }
     public var backgroundURL: URL? { link(background) }
     public var logoURL: URL? { link(logo) }
@@ -81,6 +98,11 @@ public struct Home: Codable, Sendable {
     public let continueWatching: [Resume]
     /// nil: the add-ons couldn't be reached.
     public let rows: [Row]?
+
+    public init(continueWatching: [Resume], rows: [Row]?) {
+        self.continueWatching = continueWatching
+        self.rows = rows
+    }
 }
 
 public struct Items: Codable, Sendable {
@@ -90,6 +112,11 @@ public struct Items: Codable, Sendable {
 public struct SearchResults: Codable, Sendable {
     public let movies: [Card]
     public let series: [Card]
+
+    public init(movies: [Card], series: [Card]) {
+        self.movies = movies
+        self.series = series
+    }
 }
 
 public struct Video: Codable, Sendable, Hashable, Identifiable {
@@ -191,6 +218,11 @@ public struct StreamOption: Codable, Sendable, Hashable, Identifiable {
 public struct Streams: Codable, Sendable {
     public let best: String?
     public let streams: [StreamOption]
+
+    public init(best: String?, streams: [StreamOption]) {
+        self.best = best
+        self.streams = streams
+    }
 }
 
 public struct Profile: Codable, Sendable, Hashable, Identifiable {
@@ -264,6 +296,11 @@ public struct TVStatus: Codable, Sendable, Hashable {
 public struct TVInput: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
 }
 
 public struct TVInputs: Codable, Sendable {

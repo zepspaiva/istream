@@ -84,3 +84,13 @@ private func json(_ text: String) -> Any { try! JSONSerialization.jsonObject(wit
     #expect(!AddonEngine.contradicts(["id": "tt0386676"], requested: "tt0386676:2:3"))
     #expect(!AddonEngine.contradicts(["id": "kitsu:1"], requested: "tt0386676"))
 }
+
+@Test func readsSubtitles() {
+    let srt = "1\r\n00:00:01,000 --> 00:00:02,500\r\n<i>Hello</i> there\r\nsecond {\\an8}line\r\n\r\n2\r\n00:00:03.2 --> 00:00:04,000\r\nBye\r\n"
+    let cues = SubtitleReader.parse(srt)
+    #expect(cues == [Cue(s: 1, e: 2.5, t: "Hello there\nsecond line"), Cue(s: 3.2, e: 4, t: "Bye")])
+    #expect(SubtitleReader.parse("WEBVTT\n\n00:01:01.000 --> 00:01:02.000 align:start\nVTT line\n")
+        == [Cue(s: 61, e: 62, t: "VTT line")])
+    // Windows-1252 (an older Spanish file): "canción"
+    #expect(SubtitleReader.decode(Data([0x63, 0x61, 0x6e, 0x63, 0x69, 0xf3, 0x6e])) == "canción")
+}

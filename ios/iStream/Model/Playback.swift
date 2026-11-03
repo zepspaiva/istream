@@ -2,11 +2,11 @@ import FreeMyTVKit
 import Observation
 import SwiftUI
 
-/// Sending something to the TV and following it there: Waking the TV, Opening Free My TV, Loading the stream,
-/// Playing. Shown as the bar above the tabs until the TV's own Now Playing takes over.
+/// Sending something to the TV and following it there: Finding the best stream, Waking the TV, Opening Free My TV,
+/// Loading the stream, Playing. Shown as the bar above the tabs until the TV's own Now Playing takes over.
 ///
-/// With Free My TV open and the phone in its channel, the phone sends the video itself (the Pi only prepares it).
-/// Otherwise the Pi wakes the TV and opens it there, as in M1, and the phone joins the channel once the app is up.
+/// All from the phone: the add-ons give the stream and the details, the phone wakes the TV and opens Free My TV, and
+/// sends the video over its channel.
 @MainActor @Observable
 final class Playback {
     enum State: Equatable {
@@ -38,33 +38,46 @@ final class Playback {
         self.artwork = artwork
         step = "Finding the best stream"
         state = .sending
-        let client = app.client
+        let content = app.content
         let tv = app.tv
         app.liveActivity.begin(name: title, line: subtitle.isEmpty ? nil : subtitle)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         task = Task {
             do {
-                if tv.isConnected {
-                    let params = try await client.playPayload(type, videoId: videoId, streamUrl: streamUrl)
-                    if tv.isConnected {
-                        try tv.play(params: params)
-                        state = .following
-                        step = "Loading the stream"
-                        try await followChannel(tv: tv, url: Playback.url(in: params))
-                        return
-                    }
-                }
-                let result = try await client.play(type, videoId: videoId, streamUrl: streamUrl)
-                if !result.label.isEmpty && self.subtitle.isEmpty { self.subtitle = result.label }
+                // The stream and the TV at the same time: the TV takes a few seconds to wake.
+                async let prepared = content.playParams(type, videoId: videoId, streamUrl: streamUrl)
+                async let opened: Void = openTV(tv)
+                let (params, _, label) = try await prepared
+                if self.subtitle.isEmpty && !label.isEmpty { self.subtitle = label }
+                try await opened
+                try tv.play(params: params)
                 state = .following
-                try await follow(job: result.job, client: client, tv: tv)
+                step = "Loading the stream"
+                try await follow(tv: tv, url: Playback.url(in: params))
             } catch is CancellationError {
                 return
             } catch {
-                app.handle(error)
                 fail(error.localizedDescription)
             }
         }
+    }
+
+    private func openTV(_ tv: TVConnection) async throws {
+        if tv.isConnected { return }
+        step = tv.isReachable ? "Opening Free My TV" : "Waking the TV"
+        let watcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let self, self.state == .sending else { continue }
+                if tv.status == .needsPairing {
+                    self.step = "Allow this phone on the TV"
+                } else if tv.isReachable && self.step != "Opening Free My TV" {
+                    self.step = "Opening Free My TV"
+                }
+            }
+        }
+        defer { watcher.cancel() }
+        try await tv.openFreeMyTV()
     }
 
     private static func url(in params: Data) -> String? {
@@ -72,7 +85,7 @@ final class Playback {
     }
 
     /// The TV's own reports, until this video plays.
-    private func followChannel(tv: TVConnection, url: String?) async throws {
+    private func follow(tv: TVConnection, url: String?) async throws {
         let deadline = Date().addingTimeInterval(90)
         while Date() < deadline {
             try await Task.sleep(for: .milliseconds(500))
@@ -86,38 +99,11 @@ final class Playback {
         step = "Sent to the TV"
     }
 
-    /// The Pi's job (it wakes the TV and opens the video there), until the video plays.
-    private func follow(job: Int?, client: PiClient, tv: TVConnection) async throws {
-        let deadline = Date().addingTimeInterval(120)
-        while Date() < deadline {
-            try await Task.sleep(for: .seconds(1))
-            await tv.connectIfNeeded()   // the TV is waking: join Free My TV as soon as it's up
-            if tv.nowPlaying?.isPlaying == true {
-                playing()
-                return
-            }
-            guard let status = try? await client.tvStatus() else { continue }
-            if let current = status.job, job == nil || current.id == job {
-                step = current.step
-                if current.done {
-                    if current.ok {
-                        playing()
-                    } else {
-                        fail(current.step)
-                    }
-                    return
-                }
-            }
-        }
-        state = .playing
-        step = "Sent to the TV"
-    }
-
     private func playing() {
         state = .playing
         step = "On the TV"
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        // With the channel up, the TV's own Now Playing bar takes over in a moment.
+        // The TV's own Now Playing bar takes over in a moment.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard let self, self.state == .playing, self.app?.tv.nowPlaying != nil else { return }

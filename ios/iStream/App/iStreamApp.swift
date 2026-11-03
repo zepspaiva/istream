@@ -13,7 +13,7 @@ struct iStreamApp: App {
     }
 }
 
-/// Setup until there's a Pi, an account and a profile; then the app.
+/// Setup until there are add-ons and a TV; then the app.
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
@@ -21,9 +21,8 @@ struct RootView: View {
     var body: some View {
         Group {
             switch app.phase {
-            case .connect: ConnectView()
-            case .signIn: SignInView()
-            case .pickProfile: ProfilePickerView()
+            case .addons: AddonsSetupView()
+            case .findTV: FindTVView()
             case .ready: MainView()
             }
         }
@@ -52,9 +51,6 @@ struct MainView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .sheet(isPresented: Bindable(app).showNowPlaying) { NowPlayingView() }
-        .task {
-            app.becameActive()
-            if app.profiles.isEmpty { try? await app.loadProfiles() }
-        }
+        .task { app.becameActive() }
     }
 }

@@ -1,194 +1,279 @@
 import FreeMyTVKit
+import Network
+import Observation
 import SwiftUI
 
-// MARK: Finding the Pi
+// MARK: First run: the add-ons
 
-struct ConnectView: View {
-    @Environment(AppModel.self) private var app
-    @State private var address = "192.168.1.35"
-    @State private var working = false
-    @State private var error: String?
-
+struct AddonsSetupView: View {
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("192.168.1.35", text: $address)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.go)
-                        .onSubmit { connect() }
-                } header: {
-                    Text("The Pi's address")
-                } footer: {
-                    Text("The Raspberry Pi on your home Wi-Fi that runs iStream. The phone needs to be on the same Wi-Fi.")
-                }
-                if let error {
-                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary) }
-                }
-                Section {
-                    Button { connect() } label: {
-                        HStack {
-                            Text("Connect")
-                            Spacer()
-                            if working { ProgressView() }
-                        }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image(systemName: "puzzlepiece.extension.fill").font(.largeTitle).foregroundStyle(.tint)
+                        Text("Bring your add-ons").font(.title2.bold())
+                        Text("iStream shows what your add-ons offer: catalogs, details and streams. Bring them from your Stremio account, or add one by its address.")
+                            .foregroundStyle(.secondary)
                     }
-                    .disabled(working || address.isEmpty)
+                    .padding(.vertical, 8)
                 }
+                AddAddonSections()
             }
             .navigationTitle("iStream")
         }
     }
+}
 
-    private func connect() {
-        working = true
-        error = nil
+/// Importing from Stremio, and adding one by its address: used by the first run and the add-ons screen.
+struct AddAddonSections: View {
+    @Environment(AppModel.self) private var app
+    @State private var email = ""
+    @State private var password = ""
+    @State private var address = ""
+    @State private var working: String?
+    @State private var message: String?
+
+    var body: some View {
+        Section {
+            TextField("Email", text: $email)
+                .keyboardType(.emailAddress)
+                .textContentType(.username)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField("Password", text: $password)
+                .textContentType(.password)
+            Button { importFromStremio() } label: {
+                HStack {
+                    Text("Import from Stremio")
+                    Spacer()
+                    if working == "stremio" { ProgressView() }
+                }
+            }
+            .disabled(working != nil || email.isEmpty || password.isEmpty)
+        } header: {
+            Text("From your Stremio account")
+        } footer: {
+            Text("Your password goes to Stremio once, to read your add-on list; iStream doesn't keep it.")
+        }
+        Section {
+            TextField("https://…/manifest.json", text: $address)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button { addByAddress() } label: {
+                HStack {
+                    Text("Add")
+                    Spacer()
+                    if working == "address" { ProgressView() }
+                }
+            }
+            .disabled(working != nil || address.isEmpty)
+        } header: {
+            Text("By its address")
+        }
+        if let message {
+            Section { Text(message).foregroundStyle(.secondary) }
+        }
+    }
+
+    private func importFromStremio() {
+        working = "stremio"
+        message = nil
         Task {
             do {
-                try await app.connect(to: address)
+                let urls = try await StremioAccount.addons(email: email.trimmingCharacters(in: .whitespaces),
+                                                           password: password)
+                password = ""
+                if urls.isEmpty {
+                    message = "That account has no add-ons to bring."
+                } else {
+                    app.addAddons(urls)
+                    message = "Added \(urls.count) add-ons."
+                }
             } catch {
-                self.error = error.localizedDescription
+                message = error.localizedDescription
             }
-            working = false
+            working = nil
+        }
+    }
+
+    private func addByAddress() {
+        guard let url = AddonURL(address) else {
+            message = "That doesn't look like an add-on's address."
+            return
+        }
+        working = "address"
+        message = nil
+        Task {
+            do {
+                let manifest = try await app.content.engine.manifest(url, fresh: true)
+                app.addAddons([url])
+                address = ""
+                message = "Added \(manifest.name)."
+            } catch {
+                message = error.localizedDescription
+            }
+            working = nil
         }
     }
 }
 
-// MARK: Signing in
+// MARK: The add-ons, later
 
-struct SignInView: View {
+struct AddonsView: View {
     @Environment(AppModel.self) private var app
-    @State private var email = ""
-    @State private var password = ""
-    @State private var working = false
-    @State private var error: String?
-    @FocusState private var focus: Field?
+    @State private var addons: [InstalledAddon] = []
+    @State private var urls: [AddonURL] = []
 
-    private enum Field { case email, password }
+    var body: some View {
+        Form {
+            Section {
+                ForEach(urls, id: \.base) { url in
+                    let addon = addons.first { $0.url == url }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(addon?.name ?? url.base).lineLimit(1)
+                        Text(addon.map(summary) ?? "Not answering").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .onDelete { offsets in
+                    for index in offsets { app.removeAddon(urls[index]) }
+                    urls.remove(atOffsets: offsets)
+                }
+                .onMove { from, to in
+                    urls.move(fromOffsets: from, toOffset: to)
+                    app.moveAddons(urls)
+                }
+            } header: {
+                Text("Your add-ons")
+            } footer: {
+                Text("The order is the order on Home, and which add-on's details win.")
+            }
+            AddAddonSections()
+        }
+        .navigationTitle("Add-ons")
+        .toolbar { EditButton() }
+        .task(id: app.store.addonURLs.map(\.base)) {
+            urls = app.store.addonURLs
+            addons = await app.content.addons()
+        }
+    }
+
+    private func summary(_ addon: InstalledAddon) -> String {
+        let serves = addon.manifest.resources.map(\.name).map { name in
+            switch name {
+            case "catalog": return "catalogs"
+            case "meta": return "details"
+            case "stream": return "streams"
+            case "subtitles": return "subtitles"
+            default: return name
+            }
+        }
+        return serves.joined(separator: ", ")
+    }
+}
+
+// MARK: Finding the TV
+
+/// LG TVs announce themselves for AirPlay on the home network: listed here by name, with their address.
+@MainActor @Observable
+final class TVFinder {
+    struct Found: Identifiable, Hashable {
+        let name: String
+        let ip: String
+        var id: String { ip }
+    }
+
+    private(set) var found: [Found] = []
+    @ObservationIgnored private var browser: NWBrowser?
+    @ObservationIgnored private var resolving: [NWConnection] = []
+
+    func start() {
+        guard browser == nil else { return }
+        let browser = NWBrowser(for: .bonjour(type: "_airplay._tcp", domain: nil), using: .tcp)
+        browser.browseResultsChangedHandler = { [weak self] results, _ in
+            Task { @MainActor in self?.resolve(results) }
+        }
+        browser.start(queue: .main)
+        self.browser = browser
+    }
+
+    func stop() {
+        browser?.cancel()
+        browser = nil
+        resolving.forEach { $0.cancel() }
+        resolving = []
+    }
+
+    private func resolve(_ results: Set<NWBrowser.Result>) {
+        for result in results {
+            guard case let .service(name, _, _, _) = result.endpoint, !found.contains(where: { $0.name == name })
+            else { continue }
+            let connection = NWConnection(to: result.endpoint, using: .tcp)
+            connection.stateUpdateHandler = { [weak self, weak connection] state in
+                guard case .ready = state, let path = connection?.currentPath,
+                      case let .hostPort(host, _)? = path.remoteEndpoint, case let .ipv4(address) = host else { return }
+                let ip = "\(address)".components(separatedBy: "%").first ?? "\(address)"
+                Task { @MainActor in
+                    guard let self, !self.found.contains(where: { $0.ip == ip }) else { return }
+                    self.found.append(Found(name: name, ip: ip))
+                    connection?.cancel()
+                }
+            }
+            connection.start(queue: .main)
+            resolving.append(connection)
+        }
+    }
+}
+
+struct FindTVView: View {
+    @Environment(AppModel.self) private var app
+    @State private var finder = TVFinder()
+    @State private var address = ""
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Email", text: $email)
-                        .keyboardType(.emailAddress)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($focus, equals: .email)
-                        .submitLabel(.next)
-                        .onSubmit { focus = .password }
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
-                        .focused($focus, equals: .password)
-                        .submitLabel(.go)
-                        .onSubmit { signIn() }
-                } header: {
-                    Text("Your Nuvio account")
-                } footer: {
-                    Text("Your profiles, add-ons and library come from it. The password goes to the Pi, which signs in to Nuvio for you.")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image(systemName: "tv").font(.largeTitle).foregroundStyle(.tint)
+                        Text("Your TV").font(.title2.bold())
+                        Text("Pick your LG TV. The first time, the TV asks to allow this phone: say yes with its remote.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 8)
                 }
-                if let error {
-                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary) }
-                }
-                Section {
-                    Button { signIn() } label: {
+                Section("On this network") {
+                    if finder.found.isEmpty {
                         HStack {
-                            Text("Sign in")
-                            Spacer()
-                            if working { ProgressView() }
+                            ProgressView()
+                            Text("Looking…").foregroundStyle(.secondary)
                         }
                     }
-                    .disabled(working || email.isEmpty || password.isEmpty)
+                    ForEach(finder.found) { tv in
+                        Button { app.useTV(ip: tv.ip, name: tv.name) } label: {
+                            LabeledContent(tv.name, value: tv.ip)
+                        }
+                    }
                 }
                 Section {
-                    Button("Use a different Pi") { app.changePi() }
-                }
-            }
-            .navigationTitle("Sign in")
-            .onAppear { email = app.email ?? email }
-        }
-    }
-
-    private func signIn() {
-        guard !email.isEmpty, !password.isEmpty else { return }
-        working = true
-        error = nil
-        Task {
-            do {
-                try await app.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
-            } catch {
-                self.error = error.localizedDescription
-            }
-            working = false
-        }
-    }
-}
-
-// MARK: Who's watching?
-
-struct ProfilePickerView: View {
-    @Environment(AppModel.self) private var app
-    @State private var error: String?
-    @State private var loading = true
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 32) {
-                    Text("Who's watching?").font(.largeTitle.bold()).padding(.top, 40)
-                    if loading && app.profiles.isEmpty {
-                        ProgressView()
-                    } else if let error, app.profiles.isEmpty {
-                        ErrorState(message: error) { await load() }
-                    } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 140), spacing: 24)], spacing: 28) {
-                            ForEach(app.profiles) { profile in
-                                Button { app.choose(profile) } label: {
-                                    VStack(spacing: 10) {
-                                        ProfileBadge(profile: profile, size: 96)
-                                            .overlay {
-                                                if profile.id == app.profileId {
-                                                    Circle().strokeBorder(Color.accentColor, lineWidth: 3)
-                                                }
-                                            }
-                                        Text(profile.name).font(.headline).lineLimit(1)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 24)
+                    TextField("192.168.1.34", text: $address)
+                        .keyboardType(.numbersAndPunctuation)
+                        .autocorrectionDisabled()
+                    Button("Use this address") {
+                        app.useTV(ip: address.trimmingCharacters(in: .whitespaces), name: nil)
                     }
-                }
-                .frame(maxWidth: 700)
-                .frame(maxWidth: .infinity)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Sign out", role: .destructive) { Task { await app.signOut() } }
-                        Button("Use a different Pi") { app.changePi() }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
+                    .disabled(address.isEmpty)
+                } header: {
+                    Text("Or its address")
+                } footer: {
+                    Text("On the TV: Settings › General › Network › Wi-Fi (or Wired) › Advanced.")
                 }
             }
-            .task { await load() }
+            .navigationTitle("iStream")
+            .onAppear { finder.start() }
+            .onDisappear { finder.stop() }
         }
-    }
-
-    private func load() async {
-        loading = true
-        do {
-            try await app.loadProfiles()
-            error = nil
-        } catch {
-            self.error = error.localizedDescription
-        }
-        loading = false
     }
 }
 
@@ -202,30 +287,24 @@ struct SettingsView: View {
         @Bindable var app = app
         NavigationStack {
             Form {
-                Section("Watching as") {
-                    HStack(spacing: 12) {
-                        ProfileBadge(profile: app.profile, size: 36)
-                        Text(app.profile?.name ?? "Profile \(app.profileId ?? 0)").font(.headline)
-                    }
-                    Button("Switch profile") {
+                Section("TV") {
+                    LabeledContent(app.tvName ?? "LG TV", value: app.tv.ip ?? "—")
+                    LabeledContent("Phone remote", value: statusText)
+                    Button("Use another TV", role: .destructive) {
                         dismiss()
-                        app.switchProfile()
-                    }
-                    Toggle("Ask who's watching when the app opens", isOn: $app.askProfileOnLaunch)
-                }
-                Section("Account") {
-                    LabeledContent("Nuvio", value: app.email ?? "—")
-                    Button("Sign out", role: .destructive) {
-                        dismiss()
-                        Task { await app.signOut() }
+                        app.forgetTV()
                     }
                 }
-                Section("Pi") {
-                    LabeledContent("Address", value: app.piURL?.absoluteString ?? "—")
-                    Button("Use a different Pi") {
-                        dismiss()
-                        app.changePi()
+                Section {
+                    NavigationLink("Add-ons") { AddonsView() }
+                    Picker("Stream quality", selection: $app.preferredQuality) {
+                        Text("Automatic").tag("auto")
+                        Text("4K").tag("4K")
+                        Text("1080p").tag("1080p")
+                        Text("720p").tag("720p")
                     }
+                } footer: {
+                    Text("Automatic keeps your add-ons' order and skips streams whose sound may not play on the TV.")
                 }
                 Section {
                     LabeledContent("Version", value: Bundle.main.appVersion)
@@ -236,6 +315,17 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
+        }
+    }
+
+    private var statusText: String {
+        switch app.tv.status {
+        case .connected: return "Connected"
+        case .waitingForApp: return "Opens with Free My TV"
+        case .needsPairing: return "Allow this phone on the TV"
+        case .off: return "TV off"
+        case .connecting: return "Connecting…"
+        case .unknown: return "—"
         }
     }
 }

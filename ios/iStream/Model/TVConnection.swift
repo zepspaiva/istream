@@ -3,8 +3,9 @@ import Foundation
 import Observation
 
 /// The phone talking to the TV itself: LG's remote control API (a WebSocket on the TV, ports 3000 and 3001), with
-/// the Pi's pairing key, then LG's app-to-app channel into Free My TV (tv/web/channel.js). Through it the phone sends
-/// what to play and how, and hears what the TV shows.
+/// this phone's pairing key, then LG's app-to-app channel into Free My TV (tv/web/channel.js). Through it the phone
+/// sends what to play and how, and hears what the TV shows; the remote API itself opens apps and inputs, sets the
+/// volume and turns the TV off. Waking it is a Wake-on-LAN packet to its address.
 @MainActor @Observable
 final class TVConnection {
     enum Status: Equatable {
@@ -31,6 +32,14 @@ final class TVConnection {
     @ObservationIgnored var clientKey: String?
     @ObservationIgnored var onNewKey: ((String) -> Void)?
     @ObservationIgnored var onState: ((PlayerState) -> Void)?
+    /// The TV couldn't read a subtitle file itself: read it and send its lines (sendCues).
+    @ObservationIgnored var onNeedSubtitle: ((String) -> Void)?
+    /// The TV's network cards, for waking it.
+    @ObservationIgnored var macs: [String] = []
+    @ObservationIgnored private var pending: [String: CheckedContinuation<[String: Any], Error>] = [:]
+
+    /// Registered with the TV (it's on), whether or not Free My TV is open.
+    var isReachable: Bool { status == .connected || status == .waitingForApp }
 
     @ObservationIgnored private var socket: URLSessionWebSocketTask?
     @ObservationIgnored private var reader: Task<Void, Never>?
@@ -158,6 +167,15 @@ final class TVConnection {
     private func handle(_ message: [String: Any]) {
         let type = message["type"] as? String
         let body = message["payload"] as? [String: Any] ?? [:]
+        if let id = message["id"] as? String, pending[id] != nil {
+            if type == "error" || body["returnValue"] as? Bool == false {
+                let text = message["error"] as? String ?? body["errorText"] as? String ?? "The TV said no"
+                finish(id, .failure(TVError(message: text)))
+            } else {
+                finish(id, .success(body))
+            }
+            return
+        }
         if message["id"] as? String == "app" {
             if type == "error" || body["returnValue"] as? Bool == false {
                 // Free My TV closed (or isn't installed): ask again in a moment.
@@ -193,6 +211,8 @@ final class TVConnection {
                 }
             case "tracks":
                 if let decoded = PlayerTracks.from(body) { tracks = decoded }
+            case "needSubtitle":
+                if let url = body["url"] as? String { onNeedSubtitle?(url) }
             default:
                 break
             }
@@ -200,6 +220,7 @@ final class TVConnection {
     }
 
     private func drop(_ next: Status) {
+        for id in Array(pending.keys) { finish(id, .failure(URLError(.networkConnectionLost))) }
         reader?.cancel()
         reader = nil
         socket?.cancel(with: .goingAway, reason: nil)
@@ -253,6 +274,107 @@ final class TVConnection {
         sendToApp(["type": "subs", "index": index])
     }
 
+    /// A subtitle's lines for the TV, a few hundred at a time (the first part replaces, the next ones add).
+    func sendCues(_ url: String, _ cues: [Cue]) {
+        let parts = stride(from: 0, to: max(cues.count, 1), by: 250).map { Array(cues[$0..<min($0 + 250, cues.count)]) }
+        for (index, part) in parts.enumerated() {
+            sendToApp(["type": "cues", "url": url, "part": index,
+                       "cues": part.map { ["s": $0.s, "e": $0.e, "t": $0.t] as [String: Any] }])
+        }
+    }
+
+    // MARK: The TV itself (LG's remote API)
+
+    /// One remote API call ("ssap://..."), answered with its payload.
+    func request(_ uri: String, _ payload: [String: Any] = [:], timeout: Double = 8) async throws -> [String: Any] {
+        guard let socket else { throw TVError(message: "The TV isn't connected") }
+        let id = "r\(nextId)"
+        nextId += 1
+        let message: [String: Any] = ["type": "request", "id": id, "uri": uri, "payload": payload]
+        return try await withCheckedThrowingContinuation { continuation in
+            pending[id] = continuation
+            Task {
+                do { try await send(message, on: socket) } catch { finish(id, .failure(error)) }
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(timeout))
+                finish(id, .failure(TVError(message: "The TV didn't answer")))
+            }
+        }
+    }
+
+    private func finish(_ id: String, _ result: Result<[String: Any], Error>) {
+        pending.removeValue(forKey: id)?.resume(with: result)
+    }
+
+    func launch(_ appId: String) async throws {
+        _ = try await request("ssap://system.launcher/launch", ["id": appId])
+    }
+
+    /// The HDMI inputs with a name of their own (a console's), as Free My TV's shelf shows them.
+    func inputs() async throws -> [TVInput] {
+        let reply = try await request("ssap://tv/getExternalInputList")
+        let devices = reply["devices"] as? [[String: Any]] ?? []
+        return devices.compactMap { device in
+            guard let appId = device["appId"] as? String, let label = device["label"] as? String,
+                  label.range(of: #"^(hdmi|av|component)\s*\d*$"#, options: [.regularExpression, .caseInsensitive]) == nil
+            else { return nil }
+            return TVInput(id: appId, name: label.replacingOccurrences(of: " Game Console", with: ""))
+        }
+    }
+
+    /// "up", "down" or "mute" (mute toggles).
+    func volume(_ direction: String) async throws {
+        switch direction {
+        case "up": _ = try await request("ssap://audio/volumeUp")
+        case "down": _ = try await request("ssap://audio/volumeDown")
+        default:
+            let status = try await request("ssap://audio/getStatus")
+            _ = try await request("ssap://audio/setMute", ["mute": !(status["mute"] as? Bool ?? false)])
+        }
+    }
+
+    func turnOff() async throws {
+        _ = try await request("ssap://system/turnOff")
+    }
+
+    /// What's in front on the TV: an app's id.
+    func foregroundApp() async throws -> String? {
+        try await request("ssap://com.webos.applicationManager/getForegroundAppInfo")["appId"] as? String
+    }
+
+    /// Wake-on-LAN, sent to the TV's own address (no broadcast: that needs Apple's multicast permission).
+    func wake() {
+        guard let ip else { return }
+        WakeOnLAN.send(macs: macs, to: ip)
+    }
+
+    /// Free My TV open and the channel joined: waking the TV and opening the app as needed.
+    func openFreeMyTV(timeout: TimeInterval = 45) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        var lastWake = Date.distantPast
+        var launched = false
+        while Date() < deadline {
+            if status == .connected { return }
+            if isReachable {
+                if !launched {
+                    launched = true
+                    try? await launch(Self.appId)
+                }
+            } else {
+                if Date().timeIntervalSince(lastWake) > 5 {
+                    lastWake = Date()
+                    wake()
+                }
+                await connectIfNeeded()
+            }
+            try await Task.sleep(for: .milliseconds(400))
+        }
+        throw TVError(message: isReachable ? "Free My TV didn't open on the TV"
+            : status == .needsPairing ? "Allow this phone on the TV first"
+            : "The TV didn't turn on. Is \"Turn on via Wi-Fi\" on in its settings?")
+    }
+
     // MARK: Plumbing
 
     private func send(_ message: [String: Any], on task: URLSessionWebSocketTask) async throws {
@@ -286,6 +408,11 @@ final class TVConnection {
         "READ_TV_CURRENT_TIME", "READ_UPDATE_INFO", "SEARCH", "TEST_OPEN", "TEST_PROTECTED", "TEST_SECURE",
         "UPDATE_FROM_REMOTE_APP", "WRITE_NOTIFICATION_ALERT", "WRITE_NOTIFICATION_TOAST", "WRITE_SETTINGS",
     ]
+}
+
+struct TVError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }
 
 /// The TV's secure port (3001) has a certificate of its own making: trusted for the TV only.

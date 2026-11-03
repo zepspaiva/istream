@@ -9,7 +9,6 @@ struct HomeView: View {
     @State private var error: String?
     @State private var showSettings = false
     @State private var path = NavigationPath()
-    @State private var loadedFor: Int?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -39,14 +38,14 @@ struct HomeView: View {
             .navigationTitle("Home")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { ProfileBadge(profile: app.profile) }
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .refreshable { await load() }
-            .task(id: app.profileId) {
-                if home == nil || loadedFor != app.profileId { await load() }
+            .task {
+                if home == nil { await load() }
             }
             .routes()
         }
@@ -55,8 +54,7 @@ struct HomeView: View {
 
     private func load() async {
         do {
-            home = try await app.client.home()
-            loadedFor = app.profileId
+            home = try await app.content.home()
             error = nil
         } catch is CancellationError {
         } catch {
@@ -174,7 +172,7 @@ struct CatalogView: View {
         loading = true
         defer { loading = false }
         do {
-            let page = try await app.client.catalog(row, skip: items.count)
+            let page = try await app.content.catalog(row, skip: items.count)
             let known = Set(items.map(\.id))
             let fresh = page.filter { !known.contains($0.id) }
             if fresh.isEmpty { finished = true }
@@ -242,7 +240,7 @@ struct SearchView: View {
         searching = true
         defer { searching = false }
         do {
-            results = try await app.client.search(query)
+            results = try await app.content.search(query)
             error = nil
         } catch is CancellationError {
         } catch {
@@ -277,7 +275,7 @@ struct LibraryView: View {
             }
             .navigationTitle("Library")
             .refreshable { await load() }
-            .task(id: app.profileId) { await load() }
+            .task { await load() }
             .routes()
         }
         .withPlaybackBar()
@@ -285,7 +283,7 @@ struct LibraryView: View {
 
     private func load() async {
         do {
-            items = try await app.client.library()
+            items = try await app.content.library()
             error = nil
         } catch is CancellationError {
         } catch {

@@ -86,16 +86,22 @@ final class LiveActivityController {
     }
 }
 
-/// The Live Activity's button, with the app in the background: the Pi presses Pause or Play on the TV, and the
-/// activity shows the new state at once.
+/// The Live Activity's button, with the app in the background: the phone connects to the TV for a moment and presses
+/// Pause or Play there (LG's media controls act on Free My TV's video), and the activity shows the new state at once.
+@MainActor
 enum BackgroundRemote {
     static func setPaused(_ pause: Bool) async {
         let defaults = UserDefaults.standard
-        guard let address = defaults.string(forKey: "piAddress"), let base = PiClient.address(from: address),
-              let token = Keychain.read("piToken") else { return }
-        let profile = defaults.integer(forKey: "profileId")
-        let client = PiClient(base: base, token: token, profile: profile > 0 ? profile : nil)
-        try? await client.tvButton(pause ? "PAUSE" : "PLAY")
+        let tv = TVConnection()
+        tv.ip = defaults.string(forKey: "tvIP")
+        tv.clientKey = Keychain.read("tvClientKey")
+        if tv.ip != nil, tv.clientKey != nil {
+            await tv.connectIfNeeded()
+            if tv.isReachable {
+                _ = try? await tv.request(pause ? "ssap://media.controls/pause" : "ssap://media.controls/play")
+            }
+            tv.stop()
+        }
         let now = Date()
         for activity in Activity<NowPlayingAttributes>.activities {
             var state = activity.content.state

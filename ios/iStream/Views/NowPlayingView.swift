@@ -173,9 +173,9 @@ struct NowPlayingView: View {
     private var volume: some View {
         VStack(spacing: 14) {
             HStack(spacing: 12) {
-                roundButton("speaker.minus.fill", label: "Volume down") { tvCall { try await $0.tvVolume("down") } }
-                roundButton("speaker.slash.fill", label: "Mute") { tvCall { try await $0.tvVolume("mute") } }
-                roundButton("speaker.plus.fill", label: "Volume up") { tvCall { try await $0.tvVolume("up") } }
+                roundButton("speaker.minus.fill", label: "Volume down") { tvCall { try await $0.volume("down") } }
+                roundButton("speaker.slash.fill", label: "Mute") { tvCall { try await $0.volume("mute") } }
+                roundButton("speaker.plus.fill", label: "Volume up") { tvCall { try await $0.volume("up") } }
             }
             HStack(spacing: 12) {
                 if app.tv.nowPlaying != nil {
@@ -188,7 +188,7 @@ struct NowPlayingView: View {
                     .buttonStyle(.bordered)
                 }
                 Button(role: .destructive) {
-                    tvCall { try await $0.tvOff() }
+                    tvCall { try await $0.turnOff() }
                     dismiss()
                 } label: {
                     Label("Turn off TV", systemImage: "power").frame(maxWidth: .infinity)
@@ -223,10 +223,9 @@ struct NowPlayingView: View {
         app.tv.seek(by: seconds)
     }
 
-    /// Volume and power still go through the Pi (it reaches the TV on any screen).
-    private func tvCall(_ action: @escaping (PiClient) async throws -> Void) {
-        let client = app.client
-        Task { try? await action(client) }
+    private func tvCall(_ action: @escaping (TVConnection) async throws -> Void) {
+        let tv = app.tv
+        Task { try? await action(tv) }
     }
 
     private func clock(_ seconds: Double) -> String {

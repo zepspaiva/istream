@@ -198,13 +198,13 @@ struct TitleView: View {
         let adding = !inLibrary
         inLibrary = adding
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        let client = app.client
+        let content = app.content
         Task {
             do {
                 if adding {
-                    try await client.addToLibrary(title.card)
+                    try await content.addToLibrary(title.card)
                 } else {
-                    try await client.removeFromLibrary(title.type, title.id)
+                    try await content.removeFromLibrary(title.type, title.id)
                 }
             } catch {
                 inLibrary = !adding
@@ -216,7 +216,7 @@ struct TitleView: View {
     private func load() async {
         guard title == nil else { return }
         do {
-            let loaded = try await app.client.title(card.type, card.id)
+            let loaded = try await app.content.title(card.type, card.id)
             title = loaded
             inLibrary = loaded.inLibrary
             season = loaded.nextEpisode?.season ?? loaded.seasons.first ?? 1
@@ -314,7 +314,7 @@ struct SourcesSheet: View {
 
     private func load() async {
         do {
-            result = try await app.client.streams(request.type, videoId: request.videoId)
+            result = try await app.content.streams(request.type, videoId: request.videoId)
             error = nil
         } catch is CancellationError {
         } catch {

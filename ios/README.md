@@ -1,6 +1,8 @@
 # iStream for iPhone and iPad
 
-SwiftUI, iOS 18+. `FreeMyTVKit` (a Swift package) talks to the Pi; the app is the screens.
+SwiftUI, iOS 18+. No server: the app reads the person's add-ons itself (`FreeMyTVKit`), keeps their library and
+progress on the device (SwiftData; iCloud in M5), and talks to the LG TV directly (its remote API and Free My TV's
+channel).
 
 ## First time on the Mac
 
@@ -25,8 +27,9 @@ After pulling changes: `xcodegen` again (new files join the project), then Run.
 
 | Path | What |
 | --- | --- |
-| `FreeMyTVKit/` | `PiClient` (the Pi's API, see `pi/API.md`) and the models |
+| `FreeMyTVKit/` | The add-on engine (Stremio's protocol), stream picking, subtitles, the Stremio import, the models; `PiClient` only to carry the TV's wake addresses over from the Pi |
 | `iStream/App/` | The app, the setup-or-app switch, the tabs |
-| `iStream/Model/` | `AppModel` (Pi, account, profile), `Playback` (sending to the TV), Keychain |
-| `iStream/Views/` | Home, Search, Library, TV, the title page, sources, setup and settings |
+| `iStream/Model/` | `AppModel`, `ContentService` (what the screens ask for), `LocalStore` (SwiftData), `TVConnection` (the TV), `Playback`, the Live Activity |
+| `iStream/Views/` | Home, Search, Library, TV, the title page, sources, Now Playing, setup (add-ons, the TV) and settings |
+| `Widgets/`, `Shared/` | The Live Activity (Lock Screen and Dynamic Island) |
 | `project.yml` | The Xcode project, for XcodeGen |
