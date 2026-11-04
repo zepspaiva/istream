@@ -15,6 +15,10 @@ public struct SubtitleOption: Codable, Hashable, Sendable {
 public struct AddonError: LocalizedError, Sendable {
     public let message: String
     public var errorDescription: String? { message }
+
+    public init(message: String) {
+        self.message = message
+    }
 }
 
 /// The add-ons, from the phone: what the Pi's Nuvio Web fork did (catalogs, search, a title's details, streams,
