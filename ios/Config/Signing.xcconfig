@@ -1,6 +1,6 @@
 // Signing for the Couchwire app. Your team id goes in Local.xcconfig (not in git), next to this file:
 //   DEVELOPMENT_TEAM = ABCDE12345
 // (Xcode > Settings > Accounts > your team, or developer.apple.com > Membership details.)
-COUCHWIRE_BUNDLE_ID = com.zepspaiva.couchwire
+COUCHWIRE_BUNDLE_ID = com.zeeh.couchwire
 DEVELOPMENT_TEAM =
 #include? "Local.xcconfig"

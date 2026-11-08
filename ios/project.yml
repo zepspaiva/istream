@@ -2,7 +2,7 @@
 # Couchwire.xcodeproj is not in git: regenerate it after pulling.
 name: Couchwire
 options:
-  bundleIdPrefix: com.zepspaiva
+  bundleIdPrefix: com.zeeh
   deploymentTarget:
     iOS: "18.0"
   createIntermediateGroups: true
