@@ -1,6 +1,6 @@
 /*
- * The phone's channel (LG only): the Couchwire app on a phone joins Free My TV through LG's app-to-app gateway and
- * sends it what to play and how (pause, seek, audio, subtitles); Free My TV answers with what it shows, every few
+ * The phone's channel (LG only): the Couchwire app on a phone joins the TV app through LG's app-to-app gateway and
+ * sends it what to play and how (pause, seek, audio, subtitles); the TV app answers with what it shows, every few
  * seconds while a video plays. Nothing else reaches the TV this way: a phone has to be paired with the TV (its
  * remote control prompt) before LG lets it join.
  *

@@ -48,7 +48,7 @@ struct TVView: View {
                         launchButton(input.name, systemImage: icon(for: input.name), target: input.id)
                     }
                     launchButton("Stremio", systemImage: "play.rectangle", target: Self.stremio)
-                    launchButton("Free My TV", systemImage: "square.grid.2x2", target: TVConnection.appId)
+                    launchButton("Couchwire on the TV", systemImage: "square.grid.2x2", target: TVConnection.appId)
                 }
 
                 Section("Volume") {
@@ -91,7 +91,7 @@ struct TVView: View {
 
     private var statusText: String {
         switch app.tv.status {
-        case .connected: return "On · Free My TV open"
+        case .connected: return "On · Couchwire open"
         case .waitingForApp: return "On"
         case .needsPairing: return "Allow this phone on the TV (its remote)"
         case .off: return "Off or not answering"

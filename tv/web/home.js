@@ -1235,7 +1235,7 @@
     var list = el('div', 'list', box), holder = el('div', 'rows', list);
     var rows = [
       [tr('Model'), info && info.model], [tr('Firmware'), info && info.firmware], [tr('System'), info && info.system],
-      [tr('IP address'), info && info.ip], [tr('Time zone'), TV.zone()], ['Free My TV', info && info.version]
+      [tr('IP address'), info && info.ip], [tr('Time zone'), TV.zone()], ['Couchwire', info && info.version]
     ];
     for (var i = 0; i < rows.length; i++) {
       var row = el('div', 'row', holder), label = el('span', '', row, rows[i][0]);

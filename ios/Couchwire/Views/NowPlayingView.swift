@@ -49,7 +49,7 @@ struct NowPlayingView: View {
         switch app.tv.status {
         case .off: return "The TV is off."
         case .needsPairing: return "Allow this phone on the TV."
-        case .waitingForApp: return "Free My TV isn't open on the TV."
+        case .waitingForApp: return "Couchwire isn't open on the TV."
         default: return "Connecting to the TV…"
         }
     }

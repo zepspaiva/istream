@@ -28,10 +28,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'webos'))
 import build  # noqa: E402  (reads and changes the package's appinfo.json)
 
-IPK = os.path.join(ROOT, 'FreeMyTV-webos.ipk')
+IPK = os.path.join(ROOT, 'Couchwire-webos.ipk')
 with open(os.path.join(ROOT, 'webos', 'appinfo.json'), encoding='utf-8') as f:
     APP_ID = json.load(f)['id']
-TEMP = '/media/developer/temp/freemytv.ipk'
+TEMP = '/media/developer/temp/couchwire.ipk'
 SSH_OPTS = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=' + os.devnull, '-o', 'LogLevel=ERROR',
             '-o', 'HostKeyAlgorithms=+ssh-rsa', '-o', 'PubkeyAcceptedKeyTypes=+ssh-rsa', '-p', '9922']
 

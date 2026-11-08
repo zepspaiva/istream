@@ -64,15 +64,15 @@ final class Playback {
 
     private func openTV(_ tv: TVConnection) async throws {
         if tv.isConnected { return }
-        step = tv.isReachable ? "Opening Free My TV" : "Waking the TV"
+        step = tv.isReachable ? "Opening Couchwire on the TV" : "Waking the TV"
         let watcher = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard let self, self.state == .sending else { continue }
                 if tv.status == .needsPairing {
                     self.step = "Allow this phone on the TV"
-                } else if tv.isReachable && self.step != "Opening Free My TV" {
-                    self.step = "Opening Free My TV"
+                } else if tv.isReachable && self.step != "Opening Couchwire on the TV" {
+                    self.step = "Opening Couchwire on the TV"
                 }
             }
         }

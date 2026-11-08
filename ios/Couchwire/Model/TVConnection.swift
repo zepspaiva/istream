@@ -13,11 +13,11 @@ final class TVConnection {
         case connecting
         case off            // the TV doesn't answer
         case needsPairing   // the TV is asking to allow this phone
-        case waitingForApp  // connected to the TV, Free My TV isn't open
-        case connected      // in Free My TV's channel
+        case waitingForApp  // connected to the TV, its Couchwire app isn't open
+        case connected      // in the TV app's channel
     }
 
-    static let appId = "io.freemytv"
+    static let appId = "com.zeeh.couchwire.tv"
 
     private(set) var status: Status = .unknown
     private(set) var state: PlayerState?
@@ -376,7 +376,7 @@ final class TVConnection {
             }
             try await Task.sleep(for: .milliseconds(400))
         }
-        throw TVError(message: isReachable ? "Free My TV didn't open on the TV"
+        throw TVError(message: isReachable ? "Couchwire didn't open on the TV"
             : status == .needsPairing ? "Allow this phone on the TV first"
             : "The TV didn't turn on. Is \"Turn on via Wi-Fi\" on in its settings?")
     }

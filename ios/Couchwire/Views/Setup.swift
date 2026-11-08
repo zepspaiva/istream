@@ -321,7 +321,7 @@ struct SettingsView: View {
     private var statusText: String {
         switch app.tv.status {
         case .connected: return "Connected"
-        case .waitingForApp: return "Opens with Free My TV"
+        case .waitingForApp: return "Opens with Couchwire on the TV"
         case .needsPairing: return "Allow this phone on the TV"
         case .off: return "TV off"
         case .connecting: return "Connecting…"
