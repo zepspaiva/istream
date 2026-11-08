@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import SwiftUI
 
 /// The TV without its remote: what it's doing, the consoles and apps, volume, on and off.

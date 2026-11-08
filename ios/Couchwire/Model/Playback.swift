@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import Observation
 import SwiftUI
 

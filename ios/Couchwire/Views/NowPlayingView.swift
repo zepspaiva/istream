@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import SwiftUI
 
 /// The remote for what's playing on the TV: the place, pause, ±10 s, audio, subtitles, volume and off.

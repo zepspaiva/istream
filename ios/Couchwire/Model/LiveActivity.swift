@@ -1,5 +1,5 @@
 import ActivityKit
-import FreeMyTVKit
+import CouchwireKit
 import Foundation
 
 /// The Lock Screen and Dynamic Island's "Now playing on the TV": started when the TV plays something, moved along by

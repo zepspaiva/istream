@@ -1,8 +1,8 @@
-import FreeMyTVKit
+import CouchwireKit
 import Foundation
 
 /// What the screens ask for (home, a catalog, search, a title, streams, the library), answered on the phone: the
-/// person's add-ons through `AddonEngine`, and their library and progress from `LocalStore`. It replaces the Pi's API
+/// person's add-ons through `AddonEngine`, and their library and progress from `LocalStore`. It replaces the Pi's API of M1 to M3
 /// with the same calls.
 @MainActor
 final class ContentService {

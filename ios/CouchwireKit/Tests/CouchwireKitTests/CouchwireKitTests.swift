@@ -1,8 +1,8 @@
 import Foundation
 import Testing
-@testable import FreeMyTVKit
+@testable import CouchwireKit
 
-// Run on the Mac with:  cd ios/FreeMyTVKit && swift test
+// Run on the Mac with:  cd ios/CouchwireKit && swift test
 
 @Test func addressFromWhatPeopleType() {
     #expect(PiClient.address(from: "192.168.1.35")?.absoluteString == "http://192.168.1.35:3000")

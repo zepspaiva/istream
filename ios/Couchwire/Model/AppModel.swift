@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import Observation
 import SwiftUI
 
@@ -18,8 +18,6 @@ final class AppModel {
         static let tvMACs = "tvMACs"
         static let tvName = "tvName"
         static let quality = "preferredQuality"
-        // From the Pi days (M1 to M3): read once to carry the TV's wake addresses over.
-        static let piAddress = "piAddress"
     }
 
     private let defaults = UserDefaults.standard
@@ -121,6 +119,7 @@ final class AppModel {
         guard phase == .ready else { return }
         endBackgroundTime()
         tv.onNewKey = { key in Keychain.write(Key.tvKey, key) }
+        tv.onMACs = { [weak self] macs in self?.defaults.set(macs, forKey: Key.tvMACs) }
         tv.onState = { [weak self] state in
             self?.noteProgress(state)
             self?.liveActivity.update(state)
@@ -132,7 +131,6 @@ final class AppModel {
                 self.tv.sendCues(url, cues)
             }
         }
-        carryOverFromPi()
         tv.start()
     }
 
@@ -167,22 +165,6 @@ final class AppModel {
         guard changed || Date().timeIntervalSince(progressSavedAt) > 30 else { return }
         progressSavedAt = Date()
         content.saveProgress(state)
-    }
-
-    /// Once, for a phone set up with the Pi: its pairing had the TV's network cards (MACs), which waking it needs.
-    private func carryOverFromPi() {
-        guard tv.macs.isEmpty, let address = defaults.string(forKey: Key.piAddress),
-              let base = PiClient.address(from: address) else { return }
-        Task {
-            let client = PiClient(base: base, token: Keychain.read("piToken"))
-            guard let pairing = try? await client.tvPairing(), !pairing.macs.isEmpty else { return }
-            tv.macs = pairing.macs
-            defaults.set(pairing.macs, forKey: Key.tvMACs)
-            if tv.clientKey == nil, let key = pairing.clientKey {
-                tv.clientKey = key
-                Keychain.write(Key.tvKey, key)
-            }
-        }
     }
 
     /// Errors on screen; nothing to sign in to any more.

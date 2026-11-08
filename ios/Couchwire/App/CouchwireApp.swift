@@ -1,8 +1,8 @@
-import FreeMyTVKit
+import CouchwireKit
 import SwiftUI
 
 @main
-struct iStreamApp: App {
+struct CouchwireApp: App {
     @State private var app = AppModel()
 
     var body: some Scene {

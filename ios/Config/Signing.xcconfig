@@ -1,6 +1,6 @@
-// Signing for the iStream app. Your team id goes in Local.xcconfig (not in git), next to this file:
+// Signing for the Couchwire app. Your team id goes in Local.xcconfig (not in git), next to this file:
 //   DEVELOPMENT_TEAM = ABCDE12345
 // (Xcode > Settings > Accounts > your team, or developer.apple.com > Membership details.)
-ISTREAM_BUNDLE_ID = com.zepspaiva.istream
+COUCHWIRE_BUNDLE_ID = com.zepspaiva.couchwire
 DEVELOPMENT_TEAM =
 #include? "Local.xcconfig"

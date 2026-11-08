@@ -1,4 +1,4 @@
-# iStream
+# Couchwire
 
 Watch from the sofa without the TV remote: browse on an iPhone or iPad, tap, and the TV wakes and plays.
 

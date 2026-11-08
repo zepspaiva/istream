@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import FreeMyTVKit
+@testable import CouchwireKit
 
 // The add-on engine's reading of what add-ons send, from fixtures (no network).
 

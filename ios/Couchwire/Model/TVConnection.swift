@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import Foundation
 import Observation
 
@@ -27,15 +27,16 @@ final class TVConnection {
     /// Something is open in Free My TV's player.
     var nowPlaying: PlayerState? { status == .connected && state?.isActive == true ? state : nil }
 
-    /// The TV's address and key (from the Pi's pairing, or a new one the TV gave this phone).
+    /// The TV's address and the key it gave this phone.
     @ObservationIgnored var ip: String?
     @ObservationIgnored var clientKey: String?
     @ObservationIgnored var onNewKey: ((String) -> Void)?
     @ObservationIgnored var onState: ((PlayerState) -> Void)?
     /// The TV couldn't read a subtitle file itself: read it and send its lines (sendCues).
     @ObservationIgnored var onNeedSubtitle: ((String) -> Void)?
-    /// The TV's network cards, for waking it.
+    /// The TV's network cards, for waking it (Free My TV tells them when the phone joins).
     @ObservationIgnored var macs: [String] = []
+    @ObservationIgnored var onMACs: (([String]) -> Void)?
     @ObservationIgnored private var pending: [String: CheckedContinuation<[String: Any], Error>] = [:]
 
     /// Registered with the TV (it's on), whether or not Free My TV is open.
@@ -213,6 +214,11 @@ final class TVConnection {
                 if let decoded = PlayerTracks.from(body) { tracks = decoded }
             case "needSubtitle":
                 if let url = body["url"] as? String { onNeedSubtitle?(url) }
+            case "device":
+                if let list = body["macs"] as? [String], !list.isEmpty, list != macs {
+                    macs = list
+                    onMACs?(list)
+                }
             default:
                 break
             }
@@ -241,7 +247,7 @@ final class TVConnection {
         Task { try? await send(["type": "p2p", "to": Self.appId, "payload": body], on: socket) }
     }
 
-    /// Plays a video: the params the Pi prepared (POST /play with send: false).
+    /// Plays a video: the params ContentService prepared (the play message).
     func play(params: Data) throws {
         guard status == .connected, let object = try JSONSerialization.jsonObject(with: params) as? [String: Any] else {
             throw URLError(.notConnectedToInternet)
@@ -397,7 +403,7 @@ final class TVConnection {
         return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
-    /// What the phone asks LG to allow (the same list as the Pi's).
+    /// What the phone asks LG to allow (the list of the aiowebostv library).
     private static let permissions = [
         "APP_TO_APP", "CLOSE", "CONTROL_AUDIO", "CONTROL_DISPLAY", "CONTROL_INPUT_JOYSTICK",
         "CONTROL_INPUT_MEDIA_PLAYBACK", "CONTROL_INPUT_MEDIA_RECORDING", "CONTROL_INPUT_TEXT", "CONTROL_INPUT_TV",

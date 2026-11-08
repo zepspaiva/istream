@@ -1,9 +1,9 @@
 import Foundation
 import Security
 
-/// Small secrets (the Pi session token) in the Keychain, readable after the first unlock.
+/// Small secrets (the TV's pairing key) in the Keychain, readable after the first unlock.
 enum Keychain {
-    private static let service = "io.istream.app"
+    private static let service = "io.couchwire.app"
 
     static func read(_ account: String) -> String? {
         let query: [String: Any] = [

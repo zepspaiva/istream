@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import SwiftUI
 
 /// What to choose a source for: a movie, or one episode.

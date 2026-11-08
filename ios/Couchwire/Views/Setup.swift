@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import Network
 import Observation
 import SwiftUI
@@ -13,14 +13,14 @@ struct AddonsSetupView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Image(systemName: "puzzlepiece.extension.fill").font(.largeTitle).foregroundStyle(.tint)
                         Text("Bring your add-ons").font(.title2.bold())
-                        Text("iStream shows what your add-ons offer: catalogs, details and streams. Bring them from your Stremio account, or add one by its address.")
+                        Text("Couchwire shows what your add-ons offer: catalogs, details and streams. Bring them from your Stremio account, or add one by its address.")
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
                 }
                 AddAddonSections()
             }
-            .navigationTitle("iStream")
+            .navigationTitle("Couchwire")
         }
     }
 }
@@ -54,7 +54,7 @@ struct AddAddonSections: View {
         } header: {
             Text("From your Stremio account")
         } footer: {
-            Text("Your password goes to Stremio once, to read your add-on list; iStream doesn't keep it.")
+            Text("Your password goes to Stremio once, to read your add-on list; Couchwire doesn't keep it.")
         }
         Section {
             TextField("https://…/manifest.json", text: $address)
@@ -270,7 +270,7 @@ struct FindTVView: View {
                     Text("On the TV: Settings › General › Network › Wi-Fi (or Wired) › Advanced.")
                 }
             }
-            .navigationTitle("iStream")
+            .navigationTitle("Couchwire")
             .onAppear { finder.start() }
             .onDisappear { finder.stop() }
         }

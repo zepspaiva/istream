@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct IStreamWidgets: WidgetBundle {
+struct CouchwireWidgets: WidgetBundle {
     var body: some Widget {
         NowPlayingLiveActivity()
     }

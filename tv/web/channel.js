@@ -1,5 +1,5 @@
 /*
- * The phone's channel (LG only): the iStream app on a phone joins Free My TV through LG's app-to-app gateway and
+ * The phone's channel (LG only): the Couchwire app on a phone joins Free My TV through LG's app-to-app gateway and
  * sends it what to play and how (pause, seek, audio, subtitles); Free My TV answers with what it shows, every few
  * seconds while a video plays. Nothing else reaches the TV this way: a phone has to be paired with the TV (its
  * remote control prompt) before LG lets it join.
@@ -7,7 +7,8 @@
  * Messages are JSON with v: 1 and a type. From the phone: hello, getState, play {params}, control {action: pause |
  * resume | toggle | seek (to or by, seconds) | stop}, audio {index}, subs {index, -1 = off}; a command may carry an
  * id, answered with ack {id, ok, error}; cues {url, part, cues} (a subtitle's lines). To the phone: state
- * (Player.status()), tracks (Player.tracks()), ack, needSubtitle {url} (read it for me, please).
+ * (Player.status()), tracks (Player.tracks()), ack, needSubtitle {url} (read it for me, please), device {macs}
+ * (after hello: the TV's network cards, to wake it).
  * ES5, as the rest of web/.
  */
 (function () {
@@ -77,6 +78,7 @@
       clients[from] = true;
       send(from, stateMessage());
       send(from, tracksMessage());
+      if (p.type === 'hello') sendDevice(from);
       return;
     } else if (p.type === 'play') {
       var params = p.params || {};
@@ -95,6 +97,24 @@
       error = 'Unknown message: ' + p.type;
     }
     if (p.id !== undefined) send(from, {type: 'ack', id: p.id, ok: !error, error: error});
+  }
+
+  /** The TV's network cards (MACs), which the phone needs to wake it later with Wake-on-LAN. */
+  function sendDevice(to) {
+    var bridge = new window.PalmServiceBridge();
+    bridges.push(bridge);
+    bridge.onservicecallback = function (raw) {
+      var m = null, macs = [];
+      try { m = JSON.parse(raw); } catch (e) {}
+      for (var i = 0; i < bridges.length; i++) if (bridges[i] === bridge) { bridges.splice(i, 1); break; }
+      if (!m || m.returnValue === false) { log('network info: ' + (m && m.errorText || 'no answer')); return; }
+      var cards = [m.wiredInfo, m.wifiInfo];
+      for (var j = 0; j < cards.length; j++) {
+        if (cards[j] && cards[j].macAddress) macs.push(cards[j].macAddress);
+      }
+      if (macs.length) send(to, {type: 'device', macs: macs});
+    };
+    try { bridge.call('luna://com.webos.service.connectionmanager/getinfo', '{}'); } catch (e) {}
   }
 
   // --- the gateway ------------------------------------------------------------------------------------------------

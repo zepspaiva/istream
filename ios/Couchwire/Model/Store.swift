@@ -1,4 +1,4 @@
-import FreeMyTVKit
+import CouchwireKit
 import Foundation
 import SwiftData
 
@@ -82,7 +82,7 @@ final class LocalStore {
         let schema = Schema([SavedAddon.self, LibraryItem.self, WatchProgress.self])
         do {
             container = try ModelContainer(for: schema,
-                                           configurations: ModelConfiguration("iStream", schema: schema,
+                                           configurations: ModelConfiguration("Couchwire", schema: schema,
                                                                               cloudKitDatabase: .none))
         } catch {
             // A store that can't open (a format from a future version): start empty rather than not at all.

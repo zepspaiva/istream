@@ -15,7 +15,7 @@ public struct Cue: Codable, Hashable, Sendable {
 public enum SubtitleReader {
     public static func cues(from url: URL, session: URLSession = .shared) async throws -> [Cue] {
         var request = URLRequest(url: url, timeoutInterval: 20)
-        request.setValue("iStream/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("Couchwire/1.0", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else { throw AddonError(message: "The subtitle server said \(status)") }
