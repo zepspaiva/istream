@@ -203,13 +203,11 @@ public struct StreamOption: Codable, Sendable, Hashable, Identifiable {
     public let title: String
     public let filename: String?
     public let quality: String?
-    public let source: String?
     public let videoCodec: String?
     public let audioCodec: String?
     public let hdr: String?
     public let size: String?
     public let languages: [String]
-    public let cached: Bool
     public let label: String
 
     public var id: String { url }
