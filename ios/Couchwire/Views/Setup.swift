@@ -330,6 +330,7 @@ struct FindTVView: View {
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmingErase = false
 
     var body: some View {
         @Bindable var app = app
@@ -356,8 +357,22 @@ struct SettingsView: View {
                 }
                 BackupSection()
                 Section {
+                    Button("Erase everything", role: .destructive) { confirmingErase = true }
+                } footer: {
+                    Text("Deletes your add-ons, library, watch progress, the paired TV and your settings from this device, and goes back to the welcome page. Back up to a file first if you might want them again.")
+                }
+                Section {
                     LabeledContent("Version", value: Bundle.main.appVersion)
                 }
+            }
+            .alert("Erase everything?", isPresented: $confirmingErase) {
+                Button("Erase everything", role: .destructive) {
+                    dismiss()
+                    app.eraseEverything()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your add-ons, library, watch progress and TV pairing will be deleted from this phone. This can't be undone, unless you have a backup file.")
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
