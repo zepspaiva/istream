@@ -19,6 +19,7 @@ struct AddonsSetupView: View {
                     .padding(.vertical, 8)
                 }
                 AddAddonSections()
+                BackupSection(canExport: false)
             }
             .navigationTitle("Couchwire")
         }
@@ -306,6 +307,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Automatic keeps your add-ons' order and skips streams whose sound may not play on the TV.")
                 }
+                BackupSection()
                 Section {
                     LabeledContent("Version", value: Bundle.main.appVersion)
                 }
