@@ -59,14 +59,20 @@ struct BackupSection: View {
     }
 
     private func restore(from url: URL) {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do {
-            guard let data = try? Data(contentsOf: url) else { throw BackupError.unreadable }
-            let backup = try CouchwireBackup.decode(data)
-            message = app.restore(backup).text
-        } catch {
-            message = error.localizedDescription
-        }
+        message = restoreBackup(from: url, into: app)
+    }
+}
+
+/// Reads a backup file picked in Files and merges it in. Returns what to tell the person.
+@MainActor
+func restoreBackup(from url: URL, into app: AppModel) -> String {
+    let scoped = url.startAccessingSecurityScopedResource()
+    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+    do {
+        guard let data = try? Data(contentsOf: url) else { throw BackupError.unreadable }
+        let backup = try CouchwireBackup.decode(data)
+        return app.restore(backup).text
+    } catch {
+        return error.localizedDescription
     }
 }
