@@ -21,7 +21,7 @@ struct HomeView: View {
                         if let rows = home.rows {
                             if rows.isEmpty && home.continueWatching.isEmpty {
                                 ContentUnavailableView("Nothing here yet", systemImage: "square.stack",
-                                                       description: Text("Add catalog add-ons to your Nuvio account."))
+                                                       description: Text("Your add-ons have nothing to show on Home. Add one with catalogs in Settings › Add-ons."))
                             }
                             ForEach(rows) { CardRow(row: $0) }
                         } else {

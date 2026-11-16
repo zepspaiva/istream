@@ -3,59 +3,126 @@ import Network
 import Observation
 import SwiftUI
 
-// MARK: First run: the add-ons
+// MARK: First run: welcome, then the add-ons
 
 struct AddonsSetupView: View {
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Image(systemName: "puzzlepiece.extension.fill").font(.largeTitle).foregroundStyle(.tint)
-                        Text("Bring your add-ons").font(.title2.bold())
-                        Text("Couchwire shows what your add-ons offer: catalogs, details and streams. Bring them from your Stremio account, or add one by its address.")
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 8)
-                }
-                AddAddonSections()
-            }
-            .navigationTitle("Couchwire")
+            WelcomeView()
         }
     }
 }
 
-/// Importing from Stremio, and adding one by its address: used by the first run and the add-ons screen.
-struct AddAddonSections: View {
+/// The first screen: what Couchwire is, then "Get started" (add an add-on) or "Restore from a backup".
+struct WelcomeView: View {
     @Environment(AppModel.self) private var app
-    @State private var email = ""
-    @State private var password = ""
-    @State private var address = ""
-    @State private var working: String?
+    @State private var importing = false
     @State private var message: String?
 
     var body: some View {
-        Section {
-            TextField("Email", text: $email)
-                .keyboardType(.emailAddress)
-                .textContentType(.username)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("Password", text: $password)
-                .textContentType(.password)
-            Button { importFromStremio() } label: {
-                HStack {
-                    Text("Import from Stremio")
-                    Spacer()
-                    if working == "stremio" { ProgressView() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Image(systemName: "sofa.fill").font(.system(size: 44)).foregroundStyle(.tint)
+                    Text("Welcome to Couchwire").font(.largeTitle.bold())
+                    Text("Your phone, instead of the TV remote.")
+                        .font(.title3).foregroundStyle(.secondary)
                 }
+                VStack(alignment: .leading, spacing: 20) {
+                    WelcomePoint(systemImage: "hand.tap",
+                                 title: "Pick on your phone",
+                                 text: "Browse and choose what to watch on your iPhone or iPad, not with the arrow keys.")
+                    WelcomePoint(systemImage: "tv",
+                                 title: "Your LG TV plays it",
+                                 text: "The TV wakes up, opens Couchwire and starts playing. No inputs, no menus.")
+                    WelcomePoint(systemImage: "playpause",
+                                 title: "Your phone is the remote",
+                                 text: "Pause, skip, and change audio or subtitles from the app, the Lock Screen or the Dynamic Island.")
+                    WelcomePoint(systemImage: "puzzlepiece.extension",
+                                 title: "You bring the add-ons",
+                                 text: "Couchwire comes with nothing to watch. It shows what the add-ons you add offer: catalogs, details and streams. You add them by their address.")
+                }
+                Text("Everything stays on this phone. There's no account to make.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
-            .disabled(working != nil || email.isEmpty || password.isEmpty)
-        } header: {
-            Text("From your Stremio account")
-        } footer: {
-            Text("Your password goes to Stremio once, to read your add-on list; Couchwire doesn't keep it.")
+            .frame(maxWidth: 560, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
+            .frame(maxWidth: .infinity)
         }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 12) {
+                if let message {
+                    Text(message).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                NavigationLink {
+                    FirstAddonView()
+                } label: {
+                    Text("Get started").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button("Restore from a backup") { importing = true }
+                    .controlSize(.large)
+            }
+            .frame(maxWidth: 560)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .data]) { result in
+            switch result {
+            case let .success(url): message = restoreBackup(from: url, into: app)
+            case let .failure(error): message = error.localizedDescription
+            }
+        }
+    }
+}
+
+private struct WelcomePoint: View {
+    let systemImage: String
+    let title: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 36)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// After "Get started": add the first add-on by its address, or restore a backup.
+struct FirstAddonView: View {
+    var body: some View {
+        Form {
+            Section {
+                Text("Paste the address of an add-on you use. It usually ends in manifest.json. You can add more, and change their order, later in Settings.")
+                    .foregroundStyle(.secondary)
+            }
+            AddAddonSection()
+            BackupSection(canExport: false)
+        }
+        .navigationTitle("Your first add-on")
+    }
+}
+
+/// Adding an add-on by its address: used by the first run and the add-ons screen.
+struct AddAddonSection: View {
+    @Environment(AppModel.self) private var app
+    @State private var address = ""
+    @State private var working = false
+    @State private var message: String?
+
+    var body: some View {
         Section {
             TextField("https://…/manifest.json", text: $address)
                 .keyboardType(.URL)
@@ -65,36 +132,17 @@ struct AddAddonSections: View {
                 HStack {
                     Text("Add")
                     Spacer()
-                    if working == "address" { ProgressView() }
+                    if working { ProgressView() }
                 }
             }
-            .disabled(working != nil || address.isEmpty)
+            .disabled(working || address.isEmpty)
+            if let message {
+                Text(message).foregroundStyle(.secondary)
+            }
         } header: {
-            Text("By its address")
-        }
-        if let message {
-            Section { Text(message).foregroundStyle(.secondary) }
-        }
-    }
-
-    private func importFromStremio() {
-        working = "stremio"
-        message = nil
-        Task {
-            do {
-                let urls = try await StremioAccount.addons(email: email.trimmingCharacters(in: .whitespaces),
-                                                           password: password)
-                password = ""
-                if urls.isEmpty {
-                    message = "That account has no add-ons to bring."
-                } else {
-                    app.addAddons(urls)
-                    message = "Added \(urls.count) add-ons."
-                }
-            } catch {
-                message = error.localizedDescription
-            }
-            working = nil
+            Text("Add by its address")
+        } footer: {
+            Text("An address can include a personal key. Couchwire keeps it on this phone only.")
         }
     }
 
@@ -103,7 +151,7 @@ struct AddAddonSections: View {
             message = "That doesn't look like an add-on's address."
             return
         }
-        working = "address"
+        working = true
         message = nil
         Task {
             do {
@@ -114,7 +162,7 @@ struct AddAddonSections: View {
             } catch {
                 message = error.localizedDescription
             }
-            working = nil
+            working = false
         }
     }
 }
@@ -149,7 +197,7 @@ struct AddonsView: View {
             } footer: {
                 Text("The order is the order on Home, and which add-on's details win.")
             }
-            AddAddonSections()
+            AddAddonSection()
         }
         .navigationTitle("Add-ons")
         .toolbar { EditButton() }
@@ -306,6 +354,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Automatic keeps your add-ons' order and skips streams whose sound may not play on the TV.")
                 }
+                BackupSection()
                 Section {
                     LabeledContent("Version", value: Bundle.main.appVersion)
                 }
