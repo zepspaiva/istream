@@ -86,6 +86,14 @@ final class AppModel {
         content.addonsChanged()
     }
 
+    /// Merges a backup file in (see LocalStore.restore).
+    func restore(_ backup: CouchwireBackup) -> RestoreSummary {
+        let summary = store.restore(backup)
+        content.addonsChanged()
+        refreshPhase()
+        return summary
+    }
+
     /// The TV to use from now on (its address; the pairing comes when the phone first connects).
     func useTV(ip: String, name: String?) {
         if ip != tv.ip {
