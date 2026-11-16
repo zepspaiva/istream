@@ -120,6 +120,32 @@ final class AppModel {
         refreshPhase()
     }
 
+    /// Erase everything: add-ons, library, watch progress, the paired TV and settings, as on a fresh install. Whatever
+    /// is playing on the TV keeps playing there; the phone just lets go of it. Back to the welcome page.
+    func eraseEverything() {
+        playback.dismiss()
+        showNowPlaying = false
+        liveActivity.end()
+        tv.stop()
+        tv.onNewKey = nil
+        tv.onMACs = nil
+        tv.onState = nil
+        tv.onNeedSubtitle = nil
+        tv.ip = nil
+        tv.clientKey = nil
+        tv.macs = []
+        tvName = nil
+        Keychain.write(Key.tvKey, nil)
+        if let domain = Bundle.main.bundleIdentifier {
+            defaults.removePersistentDomain(forName: domain)
+        }
+        store.eraseAll()
+        content.forgetAll()
+        quality = "auto"
+        content.preferredQuality = quality
+        refreshPhase()
+    }
+
     // MARK: The TV
 
     /// The app came to the front: talk to the TV.

@@ -7,7 +7,7 @@ import Foundation
 @MainActor
 final class ContentService {
     let store: LocalStore
-    let engine = AddonEngine()
+    private(set) var engine = AddonEngine()
     private var installed: [InstalledAddon]?
     private var installedFor: [AddonURL] = []
 
@@ -30,6 +30,15 @@ final class ContentService {
 
     func addonsChanged() {
         installed = nil
+    }
+
+    /// Erase everything: a fresh engine (no manifests kept in memory) and no cached add-on answers or artwork.
+    func forgetAll() {
+        installed = nil
+        installedFor = []
+        engine = AddonEngine()
+        AddonEngine.defaultSession.configuration.urlCache?.removeAllCachedResponses()
+        URLCache.shared.removeAllCachedResponses()
     }
 
     // MARK: Browsing

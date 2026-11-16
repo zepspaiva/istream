@@ -159,6 +159,16 @@ final class LocalStore {
 
     func save() { try? context.save() }
 
+    // MARK: Erasing
+
+    /// Deletes every add-on, library item and progress record on this device.
+    func eraseAll() {
+        for item in (try? context.fetch(FetchDescriptor<SavedAddon>())) ?? [] { context.delete(item) }
+        for item in (try? context.fetch(FetchDescriptor<LibraryItem>())) ?? [] { context.delete(item) }
+        for item in (try? context.fetch(FetchDescriptor<WatchProgress>())) ?? [] { context.delete(item) }
+        try? context.save()
+    }
+
     /// Continue watching: the latest video per title, newest first. An unfinished one resumes; a finished episode
     /// moves on to the next (once it's known); a finished movie drops out.
     func continueWatching(limit: Int = 20) -> [Resume] {
