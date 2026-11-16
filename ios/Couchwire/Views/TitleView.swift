@@ -346,10 +346,6 @@ struct StreamRow: View {
                 if let hdr = stream.hdr {
                     Text(hdr).font(.caption.bold()).foregroundStyle(.secondary)
                 }
-                if stream.cached {
-                    Image(systemName: "bolt.fill").font(.caption).foregroundStyle(.yellow)
-                        .accessibilityLabel("Ready to start")
-                }
                 if best {
                     Text("Best").font(.caption.weight(.semibold)).foregroundStyle(.tint)
                 }
