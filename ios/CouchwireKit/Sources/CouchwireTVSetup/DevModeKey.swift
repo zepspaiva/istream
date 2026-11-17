@@ -141,7 +141,12 @@ struct PKCS1 {
             values.append(Data(integer))
         }
         guard values[0] == Data([0]), values[1].count >= 64 else { return nil }
-        (n, e, d, p, q, qinv) = (values[1], values[2], values[3], values[4], values[5], values[8])
+        n = values[1]
+        e = values[2]
+        d = values[3]
+        p = values[4]
+        q = values[5]
+        qinv = values[8]
     }
 
     private var publicBlob: SSHWriter {
