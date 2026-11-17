@@ -27,7 +27,24 @@ targets:
       - path: Shared
     dependencies:
       - package: CouchwireKit
+        product: CouchwireKit
+      - package: CouchwireKit
+        product: CouchwireTVSetup
       - target: CouchwireWidgets
+    postCompileScripts:
+      # The TV app goes inside the phone app, so the phone can install it on the TV (TV setup). Two builds: as is,
+      # and at 1280 x 720 for LG TVs that aren't 4K. --generic: nothing from tv/config.properties (keys, city) gets in.
+      - name: Build the TV app
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          OUT="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$OUT"
+          cd "$SRCROOT/../tv"
+          /usr/bin/python3 webos/build.py --generic --hd
+          cp Couchwire-webos.ipk "$OUT/Couchwire-tv-hd.ipk"
+          /usr/bin/python3 webos/build.py --generic
+          cp Couchwire-webos.ipk "$OUT/Couchwire-tv.ipk"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(COUCHWIRE_BUNDLE_ID)
@@ -36,6 +53,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
+        # The "Build the TV app" step reads and writes in tv/, outside what Xcode's script sandbox allows.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Couchwire
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

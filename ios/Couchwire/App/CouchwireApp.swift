@@ -22,7 +22,7 @@ struct RootView: View {
         Group {
             switch app.phase {
             case .addons: AddonsSetupView()
-            case .findTV: FindTVView()
+            case .findTV: TVSetupStartView()
             case .ready: MainView()
             }
         }
