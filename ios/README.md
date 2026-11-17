@@ -21,12 +21,16 @@ After pulling changes: `xcodegen` again (new files join the project), then Run.
 ## Checks
 
 - `cd ios/CouchwireKit && swift test` runs the package's tests on the Mac (decoding, URLs, which episode Play picks).
+- `cd ios/CouchwireKit && swift run couchwire-tv 192.168.1.34` logs in to the TV over SSH from the Mac, with the
+  same code the phone uses to install the TV app (needs the TV in LG Developer Mode). Add
+  `--install ../../tv/Couchwire-webos.ipk` to install it too.
 - Build errors: copy them from Xcode's Issue navigator (⌘5) and paste them to Claude.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
+| `CouchwireKit/Sources/CouchwireTVSetup` | Installing the TV app on an LG TV over SSH (Developer Mode): the TV's key, the install. `couchwire-tv` tries it from the Mac |
 | `CouchwireKit/` | The add-on engine (Stremio's protocol), stream picking, subtitles, the Stremio import, the models; `PiClient` only to carry the TV's wake addresses over from the Pi |
 | `Couchwire/App/` | The app, the setup-or-app switch, the tabs |
 | `Couchwire/Model/` | `AppModel`, `ContentService` (what the screens ask for), `LocalStore` (SwiftData), `TVConnection` (the TV), `Playback`, the Live Activity |

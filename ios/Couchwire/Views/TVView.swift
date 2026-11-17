@@ -77,6 +77,18 @@ struct TVView: View {
                     .disabled(!app.tv.isReachable)
                 }
 
+                if let ip = app.tv.ip {
+                    Section {
+                        NavigationLink {
+                            LGSetupView(ip: ip, name: app.tvName, finishTitle: "Done") { _, _ in }
+                        } label: {
+                            Label("Install or update the TV app", systemImage: "arrow.down.app")
+                        }
+                    } footer: {
+                        Text("Puts this version of Couchwire's TV app on the TV, through LG's Developer Mode.")
+                    }
+                }
+
                 if let message {
                     Section { Text(message).foregroundStyle(.secondary) }
                 }
